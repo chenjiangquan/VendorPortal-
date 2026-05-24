@@ -51,6 +51,8 @@ supabase db push
 
 The migrations create all portal tables, RLS policies, helper functions `is_admin()` and `current_vendor_id()`, and the public `product-images` storage bucket.
 
+If Supabase returns a schema cache error such as `Could not find the 'description_data' column of 'vendor_products' in the schema cache`, run the latest migrations in the Supabase SQL Editor or with `supabase db push`. After executing `alter table` statements, Supabase may need a short time to refresh its API schema cache; wait a few seconds and refresh the app if the error persists.
+
 For forgot/reset password, configure Supabase Auth URL settings with these redirect URLs:
 
 ```text

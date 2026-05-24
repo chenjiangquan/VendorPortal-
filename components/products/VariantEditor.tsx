@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export type ProductOption = {
@@ -21,6 +21,20 @@ export type VariantRow = {
   compare_at_price?: number | null;
   stock?: number | null;
 };
+
+export function parseOptionValues(input: string): string[] {
+  const seen = new Set<string>();
+  return input
+    .split(/[,，;；\n]+/)
+    .map((value) => value.trim())
+    .filter((value) => {
+      if (!value || seen.has(value)) {
+        return false;
+      }
+      seen.add(value);
+      return true;
+    });
+}
 
 export function VariantEditor({
   enabled,
@@ -49,9 +63,37 @@ export function VariantEditor({
     onOptionsChange(options.map((option, optionIndex) => (optionIndex === index ? { ...option, ...patch } : option)));
   }
 
+  function updateOptionValue(optionIndex: number, valueIndex: number, rawValue: string) {
+    const currentValues = options[optionIndex]?.values ?? [];
+    const parsedValues = parseOptionValues(rawValue);
+    const nextValues = [...currentValues];
+
+    if (parsedValues.length > 1) {
+      if (valueIndex >= nextValues.length) {
+        nextValues.push(...parsedValues);
+      } else {
+        nextValues.splice(valueIndex, 1, ...parsedValues);
+      }
+    } else if (valueIndex >= nextValues.length) {
+      if (rawValue.trim()) {
+        nextValues.push(rawValue.trim());
+      }
+    } else if (rawValue.trim()) {
+      nextValues[valueIndex] = rawValue.trim();
+    } else {
+      nextValues.splice(valueIndex, 1);
+    }
+
+    updateOption(optionIndex, { values: uniqueValues(nextValues) });
+  }
+
+  function removeOptionValue(optionIndex: number, valueIndex: number) {
+    updateOption(optionIndex, { values: options[optionIndex].values.filter((_, index) => index !== valueIndex) });
+  }
+
   function regenerate() {
     const cleanOptions = options
-      .map((option) => ({ name: option.name.trim(), values: option.values.map((value) => value.trim()).filter(Boolean) }))
+      .map((option) => ({ name: option.name.trim(), values: parseOptionValues(option.values.join("\n")) }))
       .filter((option) => option.name && option.values.length);
     if (!cleanOptions.length) {
       toast.error("Add at least one option with values.");
@@ -77,7 +119,7 @@ export function VariantEditor({
     });
     onOptionsChange(cleanOptions);
     onVariantsChange(nextVariants);
-    toast.success("Variants regenerated.");
+    toast.success("Variants updated.");
   }
 
   return (
@@ -96,23 +138,43 @@ export function VariantEditor({
           <div className="space-y-3">
             {options.map((option, index) => (
               <div key={index} className="rounded-xl border border-line bg-white p-4">
-                <div className="grid gap-3 md:grid-cols-[220px_1fr_auto]">
+                <div className="grid gap-4 md:grid-cols-[220px_1fr_auto]">
                   <label>
                     <span className="text-sm font-medium text-slate-700">Option {index + 1} name</span>
                     <input disabled={readOnly} value={option.name} onChange={(event) => updateOption(index, { name: event.target.value })} placeholder="Size" className="focus-ring mt-1 w-full rounded-xl border border-line px-4 py-2 text-sm shadow-sm" />
                   </label>
-                  <label>
-                    <span className="text-sm font-medium text-slate-700">Values</span>
-                    <input disabled={readOnly} value={option.values.join(", ")} onChange={(event) => updateOption(index, { values: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="100cm, 120cm, 142cm" className="focus-ring mt-1 w-full rounded-xl border border-line px-4 py-2 text-sm shadow-sm" />
-                  </label>
+                  <div>
+                    <span className="text-sm font-medium text-slate-700">Option values</span>
+                    <div className="mt-1 space-y-2">
+                      {[...option.values, ""].map((value, valueIndex) => {
+                        const isNewValueRow = valueIndex >= option.values.length;
+                        return (
+                          <div key={`option-value-${valueIndex}`} className="grid grid-cols-[20px_1fr_34px] items-center gap-2">
+                            <GripVertical className="h-4 w-4 text-slate-400" />
+                            <input
+                              disabled={readOnly}
+                              value={value}
+                              onChange={(event) => updateOptionValue(index, valueIndex, event.target.value)}
+                              placeholder={isNewValueRow ? "Add another value" : "Option value"}
+                              className="focus-ring w-full rounded-xl border border-line px-4 py-2 text-sm shadow-sm"
+                            />
+                            {!readOnly && !isNewValueRow ? (
+                              <button type="button" aria-label={`Remove ${value}`} onClick={() => removeOptionValue(index, valueIndex)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line text-slate-500 hover:bg-red-50 hover:text-red-600">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            ) : (
+                              <span aria-hidden className="h-9 w-9" />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                   {!readOnly && options.length > 1 && (
                     <button type="button" onClick={() => onOptionsChange(options.filter((_, optionIndex) => optionIndex !== index))} className="mt-6 inline-flex items-center justify-center rounded-xl border border-line px-3 py-2 text-sm shadow-sm">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   )}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {option.values.map((value) => <span key={value} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{value}</span>)}
                 </div>
               </div>
             ))}
@@ -124,7 +186,7 @@ export function VariantEditor({
                 <Plus className="h-4 w-4" /> Add option
               </button>
               <button type="button" onClick={regenerate} className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm">
-                Regenerate variants
+                Update variants
               </button>
             </div>
           )}
@@ -167,6 +229,17 @@ function CellInput({ value, onChange, type = "text", readOnly }: { value: string
 
 function updateVariant(variants: VariantRow[], index: number, patch: Partial<VariantRow>, onChange: (variants: VariantRow[]) => void) {
   onChange(variants.map((variant, variantIndex) => (variantIndex === index ? { ...variant, ...patch } : variant)));
+}
+
+function uniqueValues(values: string[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    if (!value || seen.has(value)) {
+      return false;
+    }
+    seen.add(value);
+    return true;
+  });
 }
 
 function cartesian(values: string[][]) {
