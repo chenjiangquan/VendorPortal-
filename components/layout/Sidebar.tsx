@@ -8,7 +8,9 @@ import { cn } from "@/lib/utils";
 const adminItems = [
   { href: "/admin", label: "Dashboard", icon: Home },
   { href: "/admin/vendors", label: "Vendors", icon: Store },
-  { href: "/admin/products", label: "Products", icon: Package },
+  { href: "/admin/products", label: "New Products", icon: Package },
+  { href: "/admin/products/edit-requests", label: "Edit Requests", icon: Package },
+  { href: "/admin/products/delete-requests", label: "Delete Requests", icon: Package },
   { href: "/admin/orders", label: "Orders", icon: Boxes },
   { href: "/admin/tracking", label: "Tracking", icon: Truck },
   { href: "/admin/settings", label: "Settings", icon: Settings },
@@ -36,7 +38,8 @@ export function Sidebar({ role }: { role: "admin" | "vendor" }) {
       <nav className="mt-6 space-y-1">
         {items.map((item) => {
           const Icon = item.icon;
-          const active = pathname === item.href || (item.href !== `/${role}` && pathname.startsWith(`${item.href}/`));
+          const exactOnly = item.href === `/${role}` || item.href === "/admin/products";
+          const active = pathname === item.href || (!exactOnly && pathname.startsWith(`${item.href}/`));
           return (
             <Link
               key={item.href}

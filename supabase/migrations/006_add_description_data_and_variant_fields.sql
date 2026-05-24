@@ -9,3 +9,5 @@ add column if not exists options jsonb;
 
 alter table public.product_variants
 add column if not exists barcode text;
+
+notify pgrst, 'reload schema';

@@ -1,6 +1,6 @@
 # Shopify Furniture Vendor Portal
 
-Independent Vendor Portal for a Shopify furniture store. This is not a marketplace app and does not allow public vendor registration. Platform admins manually create vendor accounts, vendors upload products, admins review them, and approved products can be created in Shopify as `DRAFT` products through the Admin GraphQL API.
+Independent Vendor Portal for a Shopify furniture store. This is not a marketplace app and does not allow public vendor registration. Platform admins manually create vendor accounts, vendors upload products, admins review them, and submitted products can be created in Shopify as `DRAFT` products through the Admin GraphQL API.
 
 ## Tech Stack
 
@@ -125,6 +125,24 @@ The setting value contains `shop`, `access_token`, `scope`, and `installed_at`. 
 
 Product creation is server-side only through `lib/shopify.ts`. Products are always created with `status: DRAFT`, include vendor portal metafields, and are idempotent if `shopify_product_gid` already exists. Shopify GraphQL requests read the saved OAuth token from Supabase `app_settings`.
 
+Admin product review uses a direct flow: vendor submits product, then admin either creates a Shopify Draft or rejects the product with a reason. The old `approved` status may remain in the database for compatibility, but the v1 admin UI does not require an approval step.
+
+### Product Change Requests
+
+New Product:
+
+Vendor creates product -> Submit -> Admin creates Shopify Draft -> Product disappears from the New Products queue and remains visible in Vendor Products and Admin history.
+
+Edit Existing Shopify Draft:
+
+Vendor opens a Shopify Draft product -> requests an update -> proposed changes are stored in `product_change_requests` -> Admin reviews the comparison -> Admin approves -> Vendor Portal updates the local product and calls Shopify `productUpdate`. Vendor cannot directly modify Shopify.
+
+Delete Existing Shopify Draft:
+
+Vendor opens a Shopify Draft product -> requests delete with a reason -> Admin reviews -> Admin approves -> Shopify product is archived and the local product is marked `archived`. Vendor cannot directly delete Shopify products.
+
+Admin controls all final Shopify updates. Variants remain saved in Vendor Portal; complex Shopify variant synchronisation is intentionally deferred and should be reviewed manually in Shopify when needed.
+
 ## Test Workflow
 
 1. Log in as admin.
@@ -133,8 +151,8 @@ Product creation is server-side only through `lib/shopify.ts`. Products are alwa
 4. Create product draft.
 5. Upload product images.
 6. Submit product to admin.
-7. Admin approves product.
-8. Admin clicks Create Shopify Draft.
+7. Admin creates a Shopify Draft or rejects the product.
+8. If rejected, vendor edits and resubmits.
 9. Admin opens `/admin/settings` and clicks `Connect Shopify` if the app is not connected.
 10. Admin syncs latest Shopify orders from `/admin/orders`.
 11. Vendor opens an order and submits carrier/tracking details.

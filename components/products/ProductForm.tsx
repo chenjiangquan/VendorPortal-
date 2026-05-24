@@ -8,7 +8,7 @@ import { ProductImageDraft, ProductImageUploader } from "@/components/products/P
 import { ProductOption, VariantEditor, VariantRow } from "@/components/products/VariantEditor";
 import { DescriptionData, normaliseDescriptionData, normaliseOverviewLines } from "@/lib/product-description";
 
-export function ProductForm({ product, mode = "create", readOnly = false, vendorId }: { product?: any; mode?: "create" | "edit"; readOnly?: boolean; vendorId?: string }) {
+export function ProductForm({ product, mode = "create", readOnly = false, vendorId }: { product?: any; mode?: "create" | "edit" | "change-request"; readOnly?: boolean; vendorId?: string }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const initialDescription = useMemo(() => normaliseDescriptionData(product?.description_data), [product?.description_data]);
@@ -20,6 +20,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
   const [options, setOptions] = useState<ProductOption[]>(Array.isArray(product?.options) && product.options.length ? product.options : [{ name: "Size", values: [] }]);
   const [variants, setVariants] = useState<VariantRow[]>(product?.product_variants ?? []);
   const endpoint = mode === "create" ? "/api/vendor/products" : `/api/vendor/products/${product.id}`;
+  const isChangeRequest = mode === "change-request";
 
   function buildPayload(formData: FormData) {
     const descriptionData: DescriptionData = {
@@ -36,6 +37,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
         has_variants: hasVariants,
         options: hasVariants ? options : [],
         variants: hasVariants ? variants : [],
+        product_images: product?.product_images ?? pendingImages,
         pending_images: pendingImages.map((image, index) => ({
           url: image.url,
           storage_path: image.storage_path,
@@ -48,6 +50,29 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
 
   async function save(formData: FormData, submit = false) {
     const { descriptionData, payload } = buildPayload(formData);
+    if (isChangeRequest) {
+      const reason = String(formData.get("request_reason") ?? "").trim();
+      const res = await fetch("/api/vendor/product-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          product_id: product.id,
+          request_type: "edit",
+          reason,
+          proposed_data: payload
+        })
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "Could not submit update request.");
+        return;
+      }
+      toast.success("Update request submitted.");
+      router.push(`/vendor/products/${product.id}`);
+      router.refresh();
+      return;
+    }
+
     if (submit) {
       const validationError = validateForSubmit(formData, descriptionData, imageCount);
       if (validationError) {
@@ -120,10 +145,11 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
           productId={product?.id}
           vendorId={product?.vendor_id ?? vendorId ?? ""}
           existing={product?.id ? product.product_images ?? [] : pendingImages}
-          readOnly={readOnly}
+          readOnly={readOnly || isChangeRequest}
           onChange={setImageCount}
           onImagesChange={setPendingImages}
         />
+        {isChangeRequest && <p className="md:col-span-2 text-sm text-slate-500">Image changes are reviewed separately in a future version. Current images are included as a snapshot.</p>}
       </Section>
 
       <Section title="Variants">
@@ -154,10 +180,23 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
       </Section>
 
       {!readOnly && (
-        <div className="flex gap-3">
-          <button formAction={(fd) => save(fd)} className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold shadow-sm"><Save className="h-4 w-4" />Save Draft</button>
-          <button formAction={(fd) => save(fd, true)} className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm"><Send className="h-4 w-4" />Submit to Admin</button>
-        </div>
+        <>
+          {isChangeRequest && (
+            <Section title="Update Request">
+              <TextArea name="request_reason" label="Reason for update" defaultValue="" />
+            </Section>
+          )}
+          <div className="flex gap-3">
+            {isChangeRequest ? (
+              <button formAction={(fd) => save(fd)} className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm"><Send className="h-4 w-4" />Submit Update Request</button>
+            ) : (
+              <>
+                <button formAction={(fd) => save(fd)} className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold shadow-sm"><Save className="h-4 w-4" />Save Draft</button>
+                <button formAction={(fd) => save(fd, true)} className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm"><Send className="h-4 w-4" />Submit to Admin</button>
+              </>
+            )}
+          </div>
+        </>
       )}
     </form>
   );

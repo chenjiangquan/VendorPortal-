@@ -1,9 +1,22 @@
 import OpenAI from "openai";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export function safeParseAiJson(text: string) {
+  const trimmed = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return null;
+
+  try {
+    return JSON.parse(trimmed.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
 export async function optimiseProduct(productId: string) {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("Missing OPENAI_API_KEY.");
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
 
   const supabase = createAdminClient();
   const { data: product } = await supabase
@@ -20,7 +33,7 @@ export async function optimiseProduct(productId: string) {
       {
         role: "system",
         content:
-          "You write UK English furniture ecommerce copy for Shopify. Do not invent facts. Avoid unsupported warranty, delivery, or exaggerated claims. Return strict JSON only."
+          "You write UK English furniture ecommerce copy for Shopify. Do not invent facts. Avoid unsupported warranty, delivery, or exaggerated claims. Return only one valid JSON object. Do not use markdown, code fences, prose, comments, or trailing commas."
       },
       {
         role: "user",
@@ -42,5 +55,11 @@ export async function optimiseProduct(productId: string) {
   });
 
   const text = response.output_text;
-  return JSON.parse(text);
+  const parsed = safeParseAiJson(text);
+  if (!parsed) {
+    console.error("AI returned invalid JSON:", text.slice(0, 500));
+    throw new Error("AI returned invalid JSON. Please try again.");
+  }
+
+  return parsed;
 }
