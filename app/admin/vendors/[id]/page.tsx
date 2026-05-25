@@ -1,4 +1,5 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { DeleteVendorButton } from "@/components/admin/DeleteVendorButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -12,7 +13,13 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
   return (
     <DashboardShell role="admin" title={vendor?.company_name ?? "Vendor"}>
       <div className="rounded-lg border border-line bg-white p-5">
-        <div className="flex justify-between"><h2 className="text-lg font-semibold">{vendor?.company_name}</h2><StatusBadge status={vendor?.status} /></div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">{vendor?.company_name}</h2>
+          <div className="flex items-center gap-3">
+            <StatusBadge status={vendor?.status} />
+            {vendor?.id && <DeleteVendorButton vendorId={vendor.id} vendorName={vendor.company_name} redirectToList />}
+          </div>
+        </div>
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-3">
           <div><dt className="text-slate-500">Contact</dt><dd>{vendor?.contact_name}</dd></div>
           <div><dt className="text-slate-500">Email</dt><dd>{vendor?.email}</dd></div>
