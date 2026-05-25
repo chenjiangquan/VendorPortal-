@@ -1042,13 +1042,25 @@ export async function archiveShopifyProduct(productId: string) {
       }
     });
     if (data.productUpdate.userErrors.length) {
+      if (isShopifyProductNotFound(data.productUpdate.userErrors)) return { archived: true, notFound: true, warning: "Shopify product not found but still deleted locally." };
       throw new ShopifyDraftCreationError("Shopify product archive failed.", data.productUpdate.userErrors);
     }
     return { archived: true };
   } catch (error) {
     if (error instanceof ShopifyDraftCreationError) throw error;
+    if (isShopifyProductNotFound(error)) return { archived: true, notFound: true, warning: "Shopify product not found but still deleted locally." };
     throw new ShopifyDraftCreationError("Shopify product archive failed.", error instanceof Error ? error.message : error);
   }
+}
+
+function isShopifyProductNotFound(error: unknown) {
+  const text = Array.isArray(error)
+    ? error.map((item) => `${item?.field?.join?.(".") ?? ""} ${item?.message ?? ""}`).join(" ")
+    : error instanceof Error
+      ? error.message
+      : JSON.stringify(error ?? "");
+  const lower = text.toLowerCase();
+  return lower.includes("not found") || lower.includes("does not exist") || lower.includes("invalid id") || lower.includes("could not find");
 }
 
 export function getShopifyProductAdminUrl(productGid: string) {

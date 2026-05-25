@@ -10,15 +10,23 @@ export async function POST(request: Request) {
   if (!requestIds.length) return NextResponse.json({ error: "Select at least one delete request." }, { status: 400 });
 
   let successCount = 0;
+  let notFoundDeletedCount = 0;
   const failedItems: { id: string; title?: string; error: string }[] = [];
   for (const id of requestIds) {
     try {
-      await approveDeleteRequest(ctx, id);
+      const result = await approveDeleteRequest(ctx, id);
+      if (result?.notFound) notFoundDeletedCount += 1;
       successCount += 1;
     } catch (error) {
       failedItems.push({ id, error: error instanceof Error ? error.message : "Approval failed." });
     }
   }
 
-  return NextResponse.json({ successCount, failedCount: failedItems.length, failedItems });
+  return NextResponse.json({
+    successCount,
+    failedCount: failedItems.length,
+    failedItems,
+    notFoundDeletedCount,
+    warning: notFoundDeletedCount ? `${notFoundDeletedCount} products not found but still deleted.` : undefined
+  });
 }

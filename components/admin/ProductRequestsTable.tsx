@@ -67,6 +67,7 @@ export function ProductRequestsTable({ requests, type }: { requests: ProductRequ
       return;
     }
     toast.success(`${json.successCount ?? 0} completed. ${json.failedCount ?? 0} failed.`);
+    if (json.warning) toast.warning(json.warning);
     if (json.failedItems?.length) setTechnicalError(json.failedItems);
     setSelectedIds([]);
     router.refresh();

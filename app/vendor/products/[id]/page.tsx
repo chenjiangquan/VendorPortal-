@@ -1,6 +1,7 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ProductChangeRequestActions } from "@/components/products/ProductChangeRequestActions";
 import { ProductForm } from "@/components/products/ProductForm";
+import { VendorProductDeleteButton } from "@/components/products/VendorProductDeleteButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireVendor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -17,13 +18,17 @@ export default async function VendorProductDetailPage({ params, searchParams }: 
   const hasPendingEdit = (requests ?? []).some((item: any) => item.request_type === "edit");
   const hasPendingDelete = (requests ?? []).some((item: any) => item.request_type === "delete");
   const canRequestChanges = ["approved", "shopify_draft"].includes(product.status);
+  const canDeleteLocally = ["draft", "rejected", "submitted"].includes(product.status);
   const isEditRequest = canRequestChanges && request === "edit" && !hasPendingEdit;
   const readOnly = isEditRequest ? false : !["draft", "rejected"].includes(product?.status);
   return (
     <DashboardShell role="vendor" title={isEditRequest ? `Request update: ${product?.title}` : product?.title ?? "Product"}>
-      <div className="mb-4 flex items-center justify-between rounded-lg border border-line bg-white p-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-white p-4">
         <span className="text-sm text-slate-500">{isEditRequest ? "Submit proposed changes for admin review. Shopify will not be updated until admin approves." : readOnly ? "This product is read-only after submission. You can still view all submitted information here." : "Draft and rejected products can be edited before submitting again."}</span>
-        <StatusBadge status={product?.status} />
+        <div className="flex items-center gap-3">
+          <StatusBadge status={product?.status} />
+          {!isEditRequest && canDeleteLocally && <VendorProductDeleteButton productId={product.id} />}
+        </div>
       </div>
       {canRequestChanges && !isEditRequest && <ProductChangeRequestActions productId={product.id} hasPendingEdit={hasPendingEdit} hasPendingDelete={hasPendingDelete} />}
       <ProductForm product={product} mode={isEditRequest ? "change-request" : "edit"} readOnly={readOnly} />

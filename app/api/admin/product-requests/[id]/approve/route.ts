@@ -15,7 +15,8 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     const result = request.request_type === "edit" ? await approveEditRequest(ctx, id) : await approveDeleteRequest(ctx, id);
     return NextResponse.json({
       ...result,
-      message: request.request_type === "edit" ? "Product update approved and Shopify draft updated." : "Delete request approved. Product archived."
+      message: request.request_type === "edit" ? "Product update approved and Shopify draft updated." : "Delete request approved. Product archived.",
+      warning: request.request_type === "delete" && "notFound" in result && result.notFound ? "1 product not found but still deleted." : "warning" in result ? result.warning : undefined
     });
   } catch (error) {
     return NextResponse.json({
