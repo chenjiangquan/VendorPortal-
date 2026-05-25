@@ -41,7 +41,8 @@ export async function optimiseProduct(productId: string) {
           product,
           required_shape: {
             improved_title: "string",
-            product_description_html: "string",
+            product_overview: ["string"],
+            details: [{ label: "string", value: "string" }],
             seo_title: "string",
             seo_description: "string",
             tags: ["string"],

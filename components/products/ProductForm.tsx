@@ -51,23 +51,23 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
   async function save(formData: FormData, submit = false) {
     const { descriptionData, payload } = buildPayload(formData);
     if (isChangeRequest) {
-      const reason = String(formData.get("request_reason") ?? "").trim();
       const res = await fetch("/api/vendor/product-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           product_id: product.id,
           request_type: "edit",
-          reason,
+          reason: null,
           proposed_data: payload
         })
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? "Could not submit update request.");
+        console.error(json.details ?? json.error);
+        toast.error(json.error ?? "Update request could not be submitted. Please contact admin.");
         return;
       }
-      toast.success("Update request submitted.");
+      toast.success("Update request submitted for admin review.");
       router.push(`/vendor/products/${product.id}`);
       router.refresh();
       return;
@@ -181,11 +181,6 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
 
       {!readOnly && (
         <>
-          {isChangeRequest && (
-            <Section title="Update Request">
-              <TextArea name="request_reason" label="Reason for update" defaultValue="" />
-            </Section>
-          )}
           <div className="flex gap-3">
             {isChangeRequest ? (
               <button formAction={(fd) => save(fd)} className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm"><Send className="h-4 w-4" />Submit Update Request</button>

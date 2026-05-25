@@ -4,6 +4,8 @@ export type Role = "admin" | "vendor";
 export type ProductStatus = "draft" | "submitted" | "approved" | "rejected" | "shopify_draft" | "archived";
 export type VendorOrderStatus = "open" | "tracking_submitted" | "reviewed" | "closed" | "cancelled";
 export type TrackingStatus = "submitted" | "reviewed" | "rejected";
+export type ProductChangeRequestType = "edit" | "delete";
+export type ProductChangeRequestStatus = "pending" | "approved" | "rejected" | "cancelled";
 
 export type VendorProductRow = {
   id: string;
@@ -51,6 +53,21 @@ export type ProductVariantRow = {
   stock: number | null;
 };
 
+export type ProductChangeRequestRow = {
+  id: string;
+  product_id: string;
+  vendor_id: string;
+  request_type: ProductChangeRequestType;
+  status: ProductChangeRequestStatus;
+  proposed_data: Json | null;
+  reason: string | null;
+  admin_note: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -63,6 +80,11 @@ export type Database = {
         Row: ProductVariantRow;
         Insert: Partial<Omit<ProductVariantRow, "id">> & { product_id: string; vendor_id: string };
         Update: Partial<ProductVariantRow>;
+      };
+      product_change_requests: {
+        Row: ProductChangeRequestRow;
+        Insert: Partial<Omit<ProductChangeRequestRow, "id" | "created_at" | "updated_at">> & { product_id: string; vendor_id: string; request_type: ProductChangeRequestType };
+        Update: Partial<ProductChangeRequestRow>;
       };
     } & Record<string, { Row: Record<string, unknown>; Insert: Record<string, unknown>; Update: Record<string, unknown> }>;
   };

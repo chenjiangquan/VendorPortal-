@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Only approved or Shopify Draft products can use change requests." }, { status: 400 });
   }
 
-  const { data: existing } = await ctx.supabase
+  const { data: existing, error: existingError } = await ctx.supabase
     .from("product_change_requests")
     .select("id")
     .eq("product_id", productId)
@@ -31,7 +31,18 @@ export async function POST(request: Request) {
     .eq("status", "pending")
     .maybeSingle();
 
+  if (existingError && isMissingProductChangeRequestsTable(existingError)) {
+    return NextResponse.json({
+      error: requestType === "edit" ? "Update request could not be submitted. Please contact admin." : "Delete request could not be submitted. Please contact admin.",
+      details: existingError.message
+    }, { status: 500 });
+  }
+  if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 });
   if (existing) return NextResponse.json({ error: `A pending ${requestType} request already exists for this product.` }, { status: 400 });
+
+  if (requestType === "delete" && !String(body.reason ?? "").trim()) {
+    return NextResponse.json({ error: "Delete reason is required." }, { status: 400 });
+  }
 
   const proposedData = requestType === "edit"
     ? { ...(body.proposed_data ?? {}), product_images: product.product_images ?? [] }
@@ -49,6 +60,12 @@ export async function POST(request: Request) {
     .select()
     .single();
 
+  if (error && isMissingProductChangeRequestsTable(error)) {
+    return NextResponse.json({
+      error: requestType === "edit" ? "Update request could not be submitted. Please contact admin." : "Delete request could not be submitted. Please contact admin.",
+      details: error.message
+    }, { status: 500 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   await ctx.supabase.from("activity_logs").insert({
@@ -60,5 +77,9 @@ export async function POST(request: Request) {
     metadata: { product_id: productId }
   });
 
-  return NextResponse.json({ request: data, message: requestType === "edit" ? "Update request submitted." : "Delete request submitted." });
+  return NextResponse.json({ request: data, message: requestType === "edit" ? "Update request submitted for admin review." : "Delete request submitted." });
+}
+
+function isMissingProductChangeRequestsTable(error: { code?: string; message?: string }) {
+  return error.code === "42P01" || error.message?.includes("product_change_requests") || false;
 }

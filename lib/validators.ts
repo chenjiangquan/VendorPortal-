@@ -77,5 +77,5 @@ export const trackingRejectSchema = z.object({
 });
 
 export const productRejectSchema = z.object({
-  rejection_reason: z.string().min(2)
+  rejection_reason: z.string().optional().nullable().default("")
 });

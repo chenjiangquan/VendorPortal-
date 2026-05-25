@@ -15,10 +15,15 @@ export function ProductChangeRequestActions({
   hasPendingDelete?: boolean;
 }) {
   const router = useRouter();
+  const [deleteReason, setDeleteReason] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function submitDeleteRequest() {
+    if (!deleteReason.trim()) {
+      toast.error("Please add a delete reason.");
+      return;
+    }
     if (!confirmed) {
       toast.error("Please confirm that admin review is required.");
       return;
@@ -27,7 +32,7 @@ export function ProductChangeRequestActions({
     const res = await fetch("/api/vendor/product-requests", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ product_id: productId, request_type: "delete" })
+      body: JSON.stringify({ product_id: productId, request_type: "delete", reason: deleteReason })
     });
     const json = await res.json().catch(() => ({}));
     setLoading(false);
@@ -53,6 +58,10 @@ export function ProductChangeRequestActions({
       </div>
       {!hasPendingDelete && (
         <div className="mt-5 space-y-3">
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Delete request reason</span>
+            <textarea value={deleteReason} onChange={(event) => setDeleteReason(event.target.value)} rows={3} className="focus-ring mt-1 w-full rounded-xl border border-line px-4 py-2 text-sm shadow-sm" />
+          </label>
           <label className="flex items-start gap-2 text-sm text-slate-600">
             <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} className="mt-1" />
             I understand this request will be reviewed by the platform admin.

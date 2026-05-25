@@ -53,6 +53,8 @@ The migrations create all portal tables, RLS policies, helper functions `is_admi
 
 If Supabase returns a schema cache error such as `Could not find the 'description_data' column of 'vendor_products' in the schema cache`, run the latest migrations in the Supabase SQL Editor or with `supabase db push`. After executing `alter table` statements, Supabase may need a short time to refresh its API schema cache; wait a few seconds and refresh the app if the error persists.
 
+Product update/delete requests require the `product_change_requests` table. After adding or changing migrations, run them in Supabase SQL Editor or with Supabase CLI before testing the portal. If Supabase still reports `Could not find the table 'public.product_change_requests' in the schema cache`, wait 30-60 seconds after running the migration and retry.
+
 For forgot/reset password, configure Supabase Auth URL settings with these redirect URLs:
 
 ```text
@@ -190,6 +192,8 @@ https://vendors.directsourcehome.com/reset-password
 9. Log in as admin and reconnect Shopify from `/admin/settings` after production deployment.
 
 Production `APP_URL` and `SHOPIFY_APP_URL` must be `https://vendors.directsourcehome.com`. Do not use localhost URLs in Vercel production environment variables.
+
+For best dashboard performance, keep the Vercel Function region close to the Supabase project region. For a UK/Europe operation, choose a Vercel region and Supabase region that are both in or near Europe to reduce round-trip latency for server-rendered admin pages.
 
 ### Vercel Environment Variables
 
