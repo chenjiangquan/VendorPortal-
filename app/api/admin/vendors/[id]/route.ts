@@ -19,7 +19,13 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: vendorError?.message ?? "Vendor not found." }, { status: 404 });
   }
 
-  await admin.from("activity_logs").delete().or(`vendor_id.eq.${vendor.id},user_id.eq.${vendor.user_id}`);
+  const { error: vendorLogError } = await admin.from("activity_logs").delete().eq("vendor_id", vendor.id);
+  if (vendorLogError) return NextResponse.json({ error: vendorLogError.message }, { status: 400 });
+
+  if (vendor.user_id) {
+    const { error: userLogError } = await admin.from("activity_logs").delete().eq("user_id", vendor.user_id);
+    if (userLogError) return NextResponse.json({ error: userLogError.message }, { status: 400 });
+  }
 
   if (vendor.user_id) {
     const { error: authError } = await admin.auth.admin.deleteUser(vendor.user_id);
