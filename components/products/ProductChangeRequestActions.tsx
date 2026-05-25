@@ -15,24 +15,14 @@ export function ProductChangeRequestActions({
   hasPendingDelete?: boolean;
 }) {
   const router = useRouter();
-  const [deleteReason, setDeleteReason] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function submitDeleteRequest() {
-    if (!deleteReason.trim()) {
-      toast.error("Please add a delete reason.");
-      return;
-    }
-    if (!confirmed) {
-      toast.error("Please confirm that admin review is required.");
-      return;
-    }
     setLoading(true);
     const res = await fetch("/api/vendor/product-requests", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ product_id: productId, request_type: "delete", reason: deleteReason })
+      body: JSON.stringify({ product_id: productId, request_type: "delete", reason: null })
     });
     const json = await res.json().catch(() => ({}));
     setLoading(false);
@@ -48,29 +38,20 @@ export function ProductChangeRequestActions({
     <section className="mb-5 rounded-2xl border border-line bg-white p-5 shadow-sm">
       <h2 className="font-semibold text-ink">Shopify Draft Change Requests</h2>
       <p className="mt-2 text-sm text-slate-500">Vendor changes are sent to admin for review. Shopify is not updated until admin approves.</p>
-      <div className="mt-4 flex flex-wrap gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         {hasPendingEdit ? (
           <span className="rounded-xl bg-violet-100 px-4 py-2 text-sm font-semibold text-violet-800">Update request pending</span>
         ) : (
           <Link href={`/vendor/products/${productId}?request=edit`} className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm">Request product update</Link>
         )}
-        {hasPendingDelete && <span className="rounded-xl bg-rose-100 px-4 py-2 text-sm font-semibold text-rose-800">Delete request pending</span>}
-      </div>
-      {!hasPendingDelete && (
-        <div className="mt-5 space-y-3">
-          <label className="block">
-            <span className="text-sm font-medium text-slate-700">Delete request reason</span>
-            <textarea value={deleteReason} onChange={(event) => setDeleteReason(event.target.value)} rows={3} className="focus-ring mt-1 w-full rounded-xl border border-line px-4 py-2 text-sm shadow-sm" />
-          </label>
-          <label className="flex items-start gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} className="mt-1" />
-            I understand this request will be reviewed by the platform admin.
-          </label>
+        {hasPendingDelete ? (
+          <span className="rounded-xl bg-rose-100 px-4 py-2 text-sm font-semibold text-rose-800">Delete request pending</span>
+        ) : (
           <button disabled={loading} onClick={submitDeleteRequest} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">
             {loading ? "Submitting..." : "Request delete"}
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </section>
   );
 }

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { getDisplayPrice } from "@/lib/product-pricing";
+import { formatDate } from "@/lib/utils";
 
 type VendorProductRow = {
   id: string;
@@ -17,6 +18,8 @@ type VendorProductRow = {
   category?: string | null;
   product_type?: string | null;
   shopify_product_id?: string | null;
+  has_variants?: boolean | null;
+  product_variants?: { price?: number | null }[];
   product_change_requests?: { request_type: string; status: string }[];
 };
 
@@ -83,7 +86,7 @@ export function VendorProductsTable({
                     </div>
                   </td>
                   <td className="px-4 py-3">{product.sku || "-"}</td>
-                  <td className="px-4 py-3">{formatCurrency(product.price)}</td>
+                  <td className="px-4 py-3">{getDisplayPrice(product)}</td>
                   <td className="px-4 py-3">{product.stock}</td>
                   <td className="px-4 py-3"><StatusBadge status={product.status} /></td>
                   <td className="px-4 py-3">{formatDate(product.created_at)}</td>

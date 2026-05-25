@@ -5,7 +5,7 @@ export type VendorProduct = {
   vendor_id: string;
   title: string;
   description?: string | null;
-  price: number;
+  price: number | null;
   sku?: string | null;
   stock?: number | null;
   status: ProductStatus;

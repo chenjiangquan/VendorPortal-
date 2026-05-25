@@ -11,7 +11,7 @@ export default async function VendorProductsPage({ searchParams }: { searchParam
   const safeSort = ["title", "created_at", "price", "stock", "status"].includes(sort ?? "") ? String(sort) : "created_at";
   const safeDirection = direction === "asc" ? "asc" : "desc";
   const supabase = await createClient();
-  let query = supabase.from("vendor_products").select("*").eq("vendor_id", vendor.id).order(safeSort, { ascending: safeDirection === "asc" });
+  let query = supabase.from("vendor_products").select("*, product_variants(price)").eq("vendor_id", vendor.id).order(safeSort, { ascending: safeDirection === "asc" });
   if (["active", "update_pending", "delete_pending"].includes(activeStatus)) query = query.neq("status", "archived");
   if (["draft", "submitted", "approved", "rejected", "shopify_draft", "archived"].includes(activeStatus)) query = query.eq("status", activeStatus);
   const { data } = await query;

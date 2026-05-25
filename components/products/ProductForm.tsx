@@ -33,13 +33,15 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
       details
     };
     const compareAtPrice = optionalNumber(mainCompareAtPrice);
+    const mainProductPrice = hasVariants ? null : requiredNumber(mainPrice);
+    const mainProductStock = hasVariants ? null : requiredNumber(mainStock);
     return {
       descriptionData,
       payload: {
         ...Object.fromEntries(formData.entries()),
-        price: requiredNumber(mainPrice),
-        compare_at_price: compareAtPrice,
-        stock: requiredNumber(mainStock),
+        price: mainProductPrice,
+        compare_at_price: hasVariants ? null : compareAtPrice,
+        stock: mainProductStock,
         tags: String(formData.get("tags") ?? "").split(",").map((tag) => tag.trim()).filter(Boolean),
         description_data: descriptionData,
         description: descriptionData.overview.join("\n"),
@@ -150,11 +152,11 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
 
       <Section title="Pricing & Inventory">
         {hasVariants && <p className="md:col-span-2 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">This product uses variants. Please set price, compare-at price and stock for each variant below.</p>}
-        <MoneyField name="price" label="Price" requiredMark={!hasVariants} value={mainPrice} onChange={(event) => setMainPrice(event.target.value)} required={!hasVariants} disabled={readOnly || hasVariants} />
-        <MoneyField name="compare_at_price" label="Compare at price" value={mainCompareAtPrice} onChange={(event) => setMainCompareAtPrice(event.target.value)} disabled={readOnly || hasVariants} />
+        <MoneyField name="price" label="Price" requiredMark={!hasVariants} value={mainPrice} placeholder={hasVariants ? "Set prices in variants below" : undefined} onChange={(event) => setMainPrice(event.target.value)} required={!hasVariants} disabled={readOnly || hasVariants} />
+        <MoneyField name="compare_at_price" label="Compare at price" value={mainCompareAtPrice} placeholder={hasVariants ? "Set compare-at prices in variants below" : undefined} onChange={(event) => setMainCompareAtPrice(event.target.value)} disabled={readOnly || hasVariants} />
         <Field name="sku" label="SKU" defaultValue={product?.sku} disabled={readOnly} />
         <Field name="barcode" label="Barcode" defaultValue={product?.barcode} disabled={readOnly} />
-        <Field name="stock" label="Stock" requiredMark={!hasVariants} type="number" value={mainStock} onChange={(event) => setMainStock(event.target.value)} required={!hasVariants} disabled={readOnly || hasVariants} />
+        <Field name="stock" label="Stock" requiredMark={!hasVariants} type="number" value={mainStock} placeholder={hasVariants ? "Set stock in variants below" : undefined} onChange={(event) => setMainStock(event.target.value)} required={!hasVariants} disabled={readOnly || hasVariants} />
       </Section>
 
       <Section title="Images">
@@ -180,6 +182,11 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
           baseStock={Number(mainStock || baseStock || 0)}
           readOnly={readOnly}
           onEnabledChange={(enabled) => {
+            if (enabled) {
+              setMainPrice("0");
+              setMainCompareAtPrice("");
+              setMainStock("0");
+            }
             if (!enabled && hasVariants && !window.confirm("Turning off variants will use the main product price and stock instead.")) return;
             setHasVariants(enabled);
           }}
@@ -193,11 +200,6 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
             </button>
           </div>
         )}
-      </Section>
-
-      <Section title="SEO">
-        <Field name="seo_title" label="SEO title" defaultValue={product?.seo_title} disabled={readOnly} />
-        <TextArea name="seo_description" label="SEO description" defaultValue={product?.seo_description} disabled={readOnly} />
       </Section>
 
       {!readOnly && (
@@ -224,8 +226,8 @@ function validateForSubmit(formData: FormData, descriptionData: DescriptionData,
   if (!hasVariants && Number(mainPrice || 0) <= 0) return "Please complete Price before submitting.";
   if (!hasVariants && Number(mainStock || -1) < 0) return "Please complete Stock before submitting.";
   if (hasVariants && !variants.length) return "Please add at least one variant.";
-  if (hasVariants && variants.some((variant) => variant.price === null || variant.price === undefined || Number(variant.price) <= 0)) return "Please complete price for every variant.";
-  if (hasVariants && variants.some((variant) => variant.stock === null || variant.stock === undefined || Number(variant.stock) < 0)) return "Please complete stock for every variant.";
+  if (hasVariants && variants.some((variant) => variant.price === null || variant.price === undefined || Number(variant.price) <= 0)) return "Please complete price for all variants before submitting.";
+  if (hasVariants && variants.some((variant) => variant.stock === null || variant.stock === undefined || Number(variant.stock) < 0)) return "Please complete stock for all variants before submitting.";
   if (imageCount < 1) return "Please add at least one product image.";
   const missing = ["Colour", "Material", "Assembly"].filter((label) => !descriptionData.details.find((row) => row.label === label)?.value.trim());
   if (missing.length) return "Please complete Colour, Material and Assembly in Details.";
@@ -327,8 +329,4 @@ function MoneyField(props: React.InputHTMLAttributes<HTMLInputElement> & { label
       </div>
     </label>
   );
-}
-
-function TextArea({ label, ...rest }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string; name: string }) {
-  return <label className="md:col-span-2"><span className="text-sm font-medium text-slate-700">{label}</span><textarea {...rest} rows={4} className="focus-ring mt-1 w-full rounded-xl border border-line bg-white px-4 py-2 text-sm shadow-sm disabled:bg-panel" /></label>;
 }

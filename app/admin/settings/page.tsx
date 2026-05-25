@@ -55,6 +55,8 @@ export default async function AdminSettingsPage() {
         <aside className="rounded-lg border border-line bg-white p-5 text-sm text-slate-600">
           <h3 className="font-semibold text-ink">Fulfillment automation</h3>
           <p className="mt-2">Automatic fulfillment remains disabled unless <code>AUTO_FULFILLMENT_ENABLED=true</code>. Version 1 keeps tracking review manual.</p>
+          <h3 className="mt-5 font-semibold text-ink">Required Shopify scopes</h3>
+          <p className="mt-2">Stock sync requires <code>read_inventory</code>, <code>write_inventory</code>, and <code>read_locations</code>. If you change scopes in Shopify Dev Dashboard, release a new app version, then reconnect Shopify here.</p>
         </aside>
       </div>
     </DashboardShell>

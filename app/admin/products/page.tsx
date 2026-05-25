@@ -32,7 +32,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
   }
   let query = supabase
     .from("vendor_products")
-    .select("id,title,status,vendor_id,price,stock,category,product_type,created_at,sku,shopify_product_gid,shopify_product_id,vendors(company_name)", { count: "exact" })
+    .select("id,title,status,vendor_id,price,stock,has_variants,category,product_type,created_at,sku,shopify_product_gid,shopify_product_id,vendors(company_name),product_variants(price)", { count: "exact" })
     .order("created_at", { ascending: false })
     .range(from, to);
   if (activeStatus !== "all") {

@@ -5,8 +5,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireRole } from "@/lib/auth";
 import { getProductChangeDiff } from "@/lib/product-diff";
 import { normaliseDescriptionData } from "@/lib/product-description";
+import { getDisplayPrice } from "@/lib/product-pricing";
 import { createClient } from "@/lib/supabase/server";
-import { formatCurrency } from "@/lib/utils";
 import { notFound } from "next/navigation";
 
 export default async function AdminEditRequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -56,7 +56,7 @@ function CompareCard({ title, product, description }: { title: string; product: 
       <dl className="mt-4 grid gap-3 text-sm">
         <div><dt className="text-slate-500">Title</dt><dd>{product?.title ?? "-"}</dd></div>
         <div><dt className="text-slate-500">SKU</dt><dd>{product?.sku ?? "-"}</dd></div>
-        <div><dt className="text-slate-500">Price</dt><dd>{formatCurrency(product?.price)}</dd></div>
+        <div><dt className="text-slate-500">Price</dt><dd>{getDisplayPrice(product)}</dd></div>
         <div><dt className="text-slate-500">Stock</dt><dd>{product?.stock ?? "-"}</dd></div>
         <div><dt className="text-slate-500">Category</dt><dd>{product?.category ?? "-"}</dd></div>
       </dl>

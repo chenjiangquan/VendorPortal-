@@ -40,10 +40,6 @@ export async function POST(request: Request) {
   if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 });
   if (existing) return NextResponse.json({ error: `A pending ${requestType} request already exists for this product.` }, { status: 400 });
 
-  if (requestType === "delete" && !String(body.reason ?? "").trim()) {
-    return NextResponse.json({ error: "Delete reason is required." }, { status: 400 });
-  }
-
   const proposedData = requestType === "edit"
     ? { ...(body.proposed_data ?? {}), product_images: body.proposed_data?.product_images ?? product.product_images ?? [] }
     : { snapshot: product };

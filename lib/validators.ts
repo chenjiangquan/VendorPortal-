@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const optionalMoney = z.preprocess((value) => value === "" || value === undefined ? null : value, z.coerce.number().optional().nullable());
+const nullableNumber = z.preprocess((value) => value === "" || value === undefined ? null : value, z.coerce.number().optional().nullable());
 
 export const vendorCreateSchema = z.object({
   company_name: z.string().min(2),
@@ -24,12 +25,12 @@ export const productDraftSchema = z.object({
   category_id: z.string().optional().nullable(),
   shopify_category_id: z.string().optional().nullable(),
   tags: z.array(z.string()).default([]),
-  price: z.coerce.number().min(0),
+  price: nullableNumber,
   compare_at_price: optionalMoney,
   cost_price: optionalMoney,
   sku: z.string().optional().nullable(),
   barcode: z.string().optional().nullable(),
-  stock: z.coerce.number().int().min(0).default(0),
+  stock: z.preprocess((value) => value === "" || value === undefined ? null : value, z.coerce.number().int().min(0).optional().nullable()),
   material: z.string().optional().nullable(),
   colour: z.string().optional().nullable(),
   dimensions: z.string().optional().nullable(),
@@ -61,9 +62,28 @@ export const productDraftSchema = z.object({
     alt_text: z.string().optional().nullable(),
     position: z.coerce.number().int().min(0).optional()
   })).optional()
+}).superRefine((data, ctx) => {
+  if (data.has_variants) {
+    if (!data.variants?.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Please add at least one variant.", path: ["variants"] });
+    }
+    if (data.variants?.some((variant) => variant.price === null || variant.price === undefined || Number(variant.price) <= 0)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Please complete price for all variants before submitting.", path: ["variants"] });
+    }
+    if (data.variants?.some((variant) => variant.stock === null || variant.stock === undefined || Number(variant.stock) < 0)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Please complete stock for all variants before submitting.", path: ["variants"] });
+    }
+    return;
+  }
+  if (data.price === null || data.price === undefined || Number(data.price) <= 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Please complete Price before submitting.", path: ["price"] });
+  }
+  if (data.stock === null || data.stock === undefined || Number(data.stock) < 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Please complete Stock before submitting.", path: ["stock"] });
+  }
 });
 
-export const productSubmitSchema = productDraftSchema.extend({
+export const productSubmitSchema = productDraftSchema.safeExtend({
   description: z.string().min(10),
   image_count: z.coerce.number().min(1).max(12)
 });

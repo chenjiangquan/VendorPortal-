@@ -4,6 +4,13 @@ import type { ShopifyTokenSetting } from "@/lib/shopify-oauth";
 import { numericIdFromGid, shopifyAdminProductUrl } from "@/lib/utils";
 
 type ShopifyError = { message: string };
+type ShopifyInventoryVariant = {
+  id: string;
+  title: string;
+  sku?: string | null;
+  selectedOptions?: { name: string; value: string }[];
+  inventoryItem?: { id: string; tracked: boolean } | null;
+};
 
 export class ShopifyDraftCreationError extends Error {
   details?: unknown;
@@ -80,6 +87,20 @@ mutation ProductCreate($input: ProductInput!, $media: [CreateMediaInput!]) {
   }
 }`;
 
+const TAXONOMY_CATEGORY_SEARCH = `
+query TaxonomyCategorySearch($query: String!) {
+  taxonomy {
+    categories(first: 10, search: $query) {
+      nodes {
+        id
+        name
+        fullName
+        isLeaf
+      }
+    }
+  }
+}`;
+
 const PRODUCT_VARIANTS_BULK_UPDATE = `
 mutation ProductVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
   productVariantsBulkUpdate(productId: $productId, variants: $variants) {
@@ -96,6 +117,10 @@ mutation ProductVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsB
       inventoryItem {
         id
         tracked
+      }
+      selectedOptions {
+        name
+        value
       }
     }
     userErrors {
@@ -122,10 +147,39 @@ mutation ProductVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsB
         id
         tracked
       }
+      selectedOptions {
+        name
+        value
+      }
     }
     userErrors {
       field
       message
+    }
+  }
+}`;
+
+const PRODUCT_OPTIONS_CREATE = `
+mutation ProductOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!, $variantStrategy: ProductOptionCreateVariantStrategy) {
+  productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) {
+    product {
+      id
+      options {
+        id
+        name
+        position
+        values
+        optionValues {
+          id
+          name
+          hasVariants
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
     }
   }
 }`;
@@ -167,6 +221,7 @@ export async function createShopifyDraftProduct(productId: string) {
 
   const structuredDescriptionHtml = buildDescriptionHtml(product.description_data);
   const hasLocalVariants = Boolean(product.has_variants && product.product_variants?.length);
+  if (hasLocalVariants) validateLocalVariants(product);
   const warnings: string[] = [];
   const media = (product.product_images ?? [])
     .filter((image: Record<string, unknown>) => typeof image.url === "string" && image.url.startsWith("https://"))
@@ -191,11 +246,15 @@ export async function createShopifyDraftProduct(productId: string) {
     };
   };
 
-  const productCreateInput = {
+  const categoryResult = await resolveShopifyCategoryId(product.category, product.shopify_category_id);
+  if (categoryResult.warning) warnings.push(categoryResult.warning);
+
+  const productCreateInput = cleanObject({
     title: product.title,
     descriptionHtml: structuredDescriptionHtml || product.final_description || product.ai_description || product.description || "",
     vendor: vendorName,
     productType: product.product_type || undefined,
+    category: categoryResult.categoryId || undefined,
     tags,
     status: "DRAFT",
     seo: {
@@ -203,20 +262,14 @@ export async function createShopifyDraftProduct(productId: string) {
       description: product.seo_description || undefined
     },
     metafields
-  };
+  });
 
   try {
-    data = await shopifyGraphQL<typeof data>(PRODUCT_CREATE, {
-      input: productCreateInput,
-      media
-    });
+    data = await createProductWithCategoryFallback(productCreateInput, media, warnings);
   } catch (error) {
     if (media.length) {
       warnings.push("Shopify Draft created, but some images failed to sync.");
-      data = await shopifyGraphQL<typeof data>(PRODUCT_CREATE, {
-        input: productCreateInput,
-        media: []
-      });
+      data = await createProductWithCategoryFallback(productCreateInput, [], warnings);
     } else {
       throw new ShopifyDraftCreationError("Shopify draft creation failed.", error instanceof Error ? error.message : error);
     }
@@ -227,10 +280,7 @@ export async function createShopifyDraftProduct(productId: string) {
     const mediaRelated = media.length && userErrors.some((error) => error.field?.some((field) => String(field).includes("media")));
     if (mediaRelated) {
       warnings.push("Shopify Draft created, but some images failed to sync.");
-      data = await shopifyGraphQL<typeof data>(PRODUCT_CREATE, {
-        input: productCreateInput,
-        media: []
-      });
+      data = await createProductWithCategoryFallback(productCreateInput, [], warnings);
     } else {
       throw new ShopifyDraftCreationError("Shopify draft creation failed.", userErrors);
     }
@@ -241,36 +291,34 @@ export async function createShopifyDraftProduct(productId: string) {
   if (!shopifyProduct) throw new Error("Shopify did not return a product.");
   const defaultVariant = shopifyProduct.variants.nodes[0];
 
-  let firstVariantGid = defaultVariant?.id ?? null;
-  let firstVariantLegacyId = defaultVariant?.legacyResourceId ?? null;
+  let firstVariantGid: string | null = defaultVariant?.id ?? null;
+  let firstVariantLegacyId: string | null = defaultVariant?.legacyResourceId ?? null;
 
-  if (defaultVariant?.id) {
+  if (defaultVariant?.id && !hasLocalVariants) {
     const updateResult = await updateDefaultVariant(defaultVariant.id, shopifyProduct.id, product);
     if (updateResult.warning) warnings.push(updateResult.warning);
-  } else {
+  } else if (!defaultVariant?.id) {
     warnings.push("Default variant price could not be synced because Shopify did not return a default variant.");
   }
 
   if (hasLocalVariants) {
-    const variantResult = await createShopifyVariants(shopifyProduct.id, product);
-    if (variantResult.warning) warnings.push(variantResult.warning);
+    const variantResult = await syncShopifyVariantsForProduct(product, shopifyProduct.id, defaultVariant?.id);
+    warnings.push(...variantResult.warnings);
     if (variantResult.firstVariantGid) {
       firstVariantGid = variantResult.firstVariantGid;
       firstVariantLegacyId = variantResult.firstVariantLegacyId;
     }
   }
 
-  const inventoryResult = await syncProductInventory({
-    productId: product.id,
-    shopifyProductId: shopifyProduct.id,
-    defaultVariant,
-    product
-  });
+  const inventoryResult = hasLocalVariants
+    ? { warnings: [], defaultInventoryItemId: null }
+    : await syncProductInventory({
+        productId: product.id,
+        shopifyProductId: shopifyProduct.id,
+        defaultVariant,
+        product
+      });
   warnings.push(...inventoryResult.warnings);
-
-  if (product.shopify_category_id) {
-    warnings.push("Category was saved in Vendor Portal but may need manual review in Shopify.");
-  }
 
   await supabase
     .from("vendor_products")
@@ -308,6 +356,88 @@ export async function createShopifyDraftProduct(productId: string) {
   };
 }
 
+async function createProductWithCategoryFallback(input: Record<string, unknown>, media: unknown[], warnings: string[]) {
+  try {
+    const data = await shopifyGraphQL<{
+      productCreate: {
+        product: {
+          id: string;
+          legacyResourceId: string;
+          title: string;
+          handle: string;
+          status: string;
+          variants: { nodes: { id: string; legacyResourceId: string; title: string; sku?: string | null; inventoryItem?: { id: string; tracked: boolean } | null }[] };
+        } | null;
+        userErrors: { field?: string[]; message: string }[];
+      };
+    }>(PRODUCT_CREATE, { input, media });
+    if ("category" in input && hasCategoryUserError(data.productCreate.userErrors)) {
+      warnings.push("Category was saved in Vendor Portal but may need manual review in Shopify.");
+      const { category: _category, ...fallbackInput } = input;
+      return shopifyGraphQL<{
+        productCreate: {
+          product: {
+            id: string;
+            legacyResourceId: string;
+            title: string;
+            handle: string;
+            status: string;
+            variants: { nodes: { id: string; legacyResourceId: string; title: string; sku?: string | null; inventoryItem?: { id: string; tracked: boolean } | null }[] };
+          } | null;
+          userErrors: { field?: string[]; message: string }[];
+        };
+      }>(PRODUCT_CREATE, { input: fallbackInput, media });
+    }
+    return data;
+  } catch (error) {
+    if ("category" in input && isCategoryInputError(error)) {
+      warnings.push("Category was saved in Vendor Portal but may need manual review in Shopify.");
+      const { category: _category, ...fallbackInput } = input;
+      return shopifyGraphQL<{
+        productCreate: {
+          product: {
+            id: string;
+            legacyResourceId: string;
+            title: string;
+            handle: string;
+            status: string;
+            variants: { nodes: { id: string; legacyResourceId: string; title: string; sku?: string | null; inventoryItem?: { id: string; tracked: boolean } | null }[] };
+          } | null;
+          userErrors: { field?: string[]; message: string }[];
+        };
+      }>(PRODUCT_CREATE, { input: fallbackInput, media });
+    }
+    throw error;
+  }
+}
+
+async function resolveShopifyCategoryId(category?: string | null, storedCategoryId?: string | null) {
+  if (storedCategoryId?.startsWith("gid://shopify/TaxonomyCategory/")) return { categoryId: storedCategoryId };
+  if (!category) return {};
+
+  const supabase = createAdminClient();
+  const cacheKey = `shopify_taxonomy_category:${category}`;
+  const { data: cached } = await supabase.from("app_settings").select("value").eq("key", cacheKey).maybeSingle();
+  const cachedValue = cached?.value as { categoryId?: string } | null;
+  if (cachedValue?.categoryId) return { categoryId: cachedValue.categoryId };
+
+  try {
+    const leafName = category.split(">").pop()?.trim() || category;
+    const data = await shopifyGraphQL<{
+      taxonomy: { categories: { nodes: { id: string; fullName: string; name: string; isLeaf: boolean }[] } };
+    }>(TAXONOMY_CATEGORY_SEARCH, { query: leafName });
+    const nodes = data.taxonomy.categories.nodes;
+    const exact = nodes.find((node) => node.fullName.toLowerCase() === category.toLowerCase());
+    const leaf = nodes.find((node) => node.isLeaf && node.name.toLowerCase() === leafName.toLowerCase());
+    const selected = exact ?? leaf ?? nodes[0];
+    if (!selected?.id) return { warning: "Category was saved in Vendor Portal but may need manual review in Shopify." };
+    await supabase.from("app_settings").upsert({ key: cacheKey, value: { categoryId: selected.id, fullName: selected.fullName, saved_at: new Date().toISOString() } });
+    return { categoryId: selected.id };
+  } catch {
+    return { warning: "Category was saved in Vendor Portal but may need manual review in Shopify." };
+  }
+}
+
 async function updateDefaultVariant(variantId: string, productId: string, product: Record<string, any>) {
   try {
     const data = await shopifyGraphQL<{
@@ -336,21 +466,103 @@ async function updateDefaultVariant(variantId: string, productId: string, produc
   }
 }
 
-async function createShopifyVariants(productId: string, product: Record<string, any>) {
-  const variants = (product.product_variants ?? []).map((variant: Record<string, any>) => {
-    const optionValues = [
-      variant.option1_value ? { optionName: variant.option1_name || "Title", name: variant.option1_value } : null,
-      variant.option2_value ? { optionName: variant.option2_name || "Option 2", name: variant.option2_value } : null,
-      variant.option3_value ? { optionName: variant.option3_name || "Option 3", name: variant.option3_value } : null
-    ].filter(Boolean);
-    return cleanObject({
-      optionValues: optionValues.length ? optionValues : [{ optionName: "Title", name: "Default Title" }],
-      price: money(variant.price ?? product.price),
-      compareAtPrice: variant.compare_at_price ? money(variant.compare_at_price) : undefined,
-      barcode: variant.barcode || undefined,
-      inventoryItem: variant.sku ? { sku: variant.sku } : product.sku ? { sku: product.sku } : undefined
+async function createShopifyProductOptions(productId: string, product: Record<string, any>) {
+  const options = normaliseProductOptions(product);
+  if (!options.length) return { success: false, warning: "Variant options could not be fully synced to Shopify. Please review this product in Shopify." };
+
+  try {
+    const data = await shopifyGraphQL<{
+      productOptionsCreate: {
+        product: { id: string } | null;
+        userErrors: { field?: string[]; message: string; code?: string }[];
+      };
+    }>(PRODUCT_OPTIONS_CREATE, {
+      productId,
+      options: options.map((option) => ({
+        name: option.name,
+        position: option.position,
+        values: option.values.map((name) => ({ name }))
+      })),
+      variantStrategy: "LEAVE_AS_IS"
     });
-  });
+    if (data.productOptionsCreate.userErrors.length) {
+      const message = formatUserErrors(data.productOptionsCreate.userErrors).toLowerCase();
+      if (message.includes("already") || message.includes("exists") || message.includes("taken")) return { success: true, alreadyExists: true };
+      return { success: false, warning: "Variant options could not be fully synced to Shopify. Please review this product in Shopify." };
+    }
+    return { success: true };
+  } catch {
+    return { success: false, warning: "Variant options could not be fully synced to Shopify. Please review this product in Shopify." };
+  }
+}
+
+async function syncShopifyVariantsForProduct(product: Record<string, any>, shopifyProductId = product.shopify_product_gid, defaultVariantId?: string | null) {
+  const warnings: string[] = [];
+  if (!product.has_variants || !product.product_variants?.length || !shopifyProductId) return { warnings };
+
+  const optionResult = await createShopifyProductOptions(shopifyProductId, product);
+  if (optionResult.warning && !optionResult.alreadyExists) warnings.push(optionResult.warning);
+
+  let shopifyVariants: ShopifyInventoryVariant[] = [];
+  try {
+    const data = await shopifyGraphQL<{ product: { variants: { nodes: ShopifyInventoryVariant[] } } }>(GET_PRODUCT_VARIANTS, { id: shopifyProductId });
+    shopifyVariants = data.product?.variants.nodes ?? [];
+  } catch {
+    warnings.push("Variant options could not be fully synced to Shopify. Please review this product in Shopify.");
+    return { warnings };
+  }
+
+  const localVariants = product.product_variants ?? [];
+  const defaultVariant = defaultVariantId ? shopifyVariants.find((variant) => variant.id === defaultVariantId) : shopifyVariants.find((variant) => variant.title === "Default Title") ?? shopifyVariants[0];
+  const createInputs: Partial<Record<string, unknown>>[] = [];
+  let firstVariantGid: string | null = null;
+  let firstVariantLegacyId: string | null = null;
+
+  for (const [index, localVariant] of localVariants.entries()) {
+    const matched = strictMatchShopifyVariant(localVariant, shopifyVariants);
+    const target = matched ?? (index === 0 ? defaultVariant : null);
+    if (target?.id) {
+      const update = await updateShopifyVariantFromLocal(shopifyProductId, target.id, localVariant, product);
+      if (update.warning) warnings.push(update.warning);
+      firstVariantGid ??= target.id;
+      firstVariantLegacyId ??= numericIdFromGid(target.id);
+      continue;
+    }
+    createInputs.push(shopifyVariantInput(localVariant, product));
+  }
+
+  if (createInputs.length) {
+    try {
+      const data = await shopifyGraphQL<{
+        productVariantsBulkCreate: {
+          productVariants: { id: string; legacyResourceId: string; title: string }[];
+          userErrors: { field?: string[]; message: string }[];
+        };
+      }>(PRODUCT_VARIANTS_BULK_CREATE, { productId: shopifyProductId, variants: createInputs });
+      if (data.productVariantsBulkCreate.userErrors.length) warnings.push("Variant options could not be fully synced to Shopify. Please review this product in Shopify.");
+      const firstCreated = data.productVariantsBulkCreate.productVariants[0];
+      firstVariantGid ??= firstCreated?.id ?? null;
+      firstVariantLegacyId ??= firstCreated?.legacyResourceId ?? null;
+    } catch {
+      warnings.push("Variant options could not be fully synced to Shopify. Please review this product in Shopify.");
+    }
+  }
+
+  const inventoryResult = await syncProductInventory({ productId: product.id, shopifyProductId, product });
+  warnings.push(...inventoryResult.warnings);
+  return { warnings: dedupeWarnings(warnings), firstVariantGid, firstVariantLegacyId };
+}
+
+async function createShopifyVariants(productId: string, product: Record<string, any>, defaultVariantId: string) {
+  const localVariants = product.product_variants ?? [];
+  const [firstVariant, ...remainingVariants] = localVariants;
+  if (!firstVariant) return {};
+
+  const firstUpdate = await updateShopifyVariantFromLocal(productId, defaultVariantId, firstVariant, product);
+  const warnings: string[] = [];
+  if (firstUpdate.warning) warnings.push(firstUpdate.warning);
+
+  const variants = remainingVariants.map((variant: Record<string, any>) => shopifyVariantInput(variant, product));
 
   if (!variants.length) return {};
 
@@ -362,13 +574,45 @@ async function createShopifyVariants(productId: string, product: Record<string, 
       };
     }>(PRODUCT_VARIANTS_BULK_CREATE, { productId, variants });
     if (data.productVariantsBulkCreate.userErrors.length) {
-      return { warning: `Variants may need manual review in Shopify: ${formatUserErrors(data.productVariantsBulkCreate.userErrors)}` };
+      warnings.push("Variant options could not be fully synced to Shopify. Please review this product in Shopify.");
     }
     const firstVariant = data.productVariantsBulkCreate.productVariants[0];
-    return { firstVariantGid: firstVariant?.id ?? null, firstVariantLegacyId: firstVariant?.legacyResourceId ?? null };
+    return {
+      warning: warnings.length ? warnings.join(" ") : undefined,
+      firstVariantGid: firstVariant?.id ?? defaultVariantId,
+      firstVariantLegacyId: firstVariant?.legacyResourceId ?? numericIdFromGid(defaultVariantId)
+    };
   } catch (error) {
-    return { warning: `Variants may need manual review in Shopify: ${error instanceof Error ? error.message : "Unknown error"}` };
+    return { warning: "Variant options could not be fully synced to Shopify. Please review this product in Shopify." };
   }
+}
+
+async function updateShopifyVariantFromLocal(productId: string, variantId: string, localVariant: Record<string, any>, product: Record<string, any>) {
+  try {
+    const data = await shopifyGraphQL<{
+      productVariantsBulkUpdate: { userErrors: { field?: string[]; message: string }[] };
+    }>(PRODUCT_VARIANTS_BULK_UPDATE, {
+      productId,
+      variants: [cleanObject({ id: variantId, ...shopifyVariantInput(localVariant, product) })]
+    });
+    if (data.productVariantsBulkUpdate.userErrors.length) {
+      return { warning: "Variant options could not be fully synced to Shopify. Please review this product in Shopify." };
+    }
+    return {};
+  } catch {
+    return { warning: "Variant options could not be fully synced to Shopify. Please review this product in Shopify." };
+  }
+}
+
+function shopifyVariantInput(variant: Record<string, any>, product: Record<string, any>) {
+  const sku = variant.sku || generatedSku(product, variant);
+  return cleanObject({
+    optionValues: variantOptionValues(variant),
+    price: money(variant.price),
+    compareAtPrice: variant.compare_at_price ? money(variant.compare_at_price) : undefined,
+    barcode: variant.barcode || undefined,
+    inventoryItem: sku ? { sku } : undefined
+  });
 }
 
 const GET_PRODUCT_VARIANTS = `
@@ -380,6 +624,10 @@ query GetProductVariants($id: ID!) {
         id
         title
         sku
+        selectedOptions {
+          name
+          value
+        }
         inventoryItem {
           id
           tracked
@@ -500,16 +748,15 @@ async function syncProductInventory({ productId, shopifyProductId, defaultVarian
   try {
     location = await getDefaultShopifyLocationId();
   } catch (error) {
-    return { warnings: [`Inventory sync skipped: ${error instanceof Error ? error.message : "No active Shopify location found."}`], defaultInventoryItemId };
+    return { warnings: [inventoryPermissionWarning(error)], defaultInventoryItemId };
   }
 
-  type ShopifyInventoryVariant = { id: string; title: string; sku?: string | null; inventoryItem?: { id: string; tracked: boolean } | null };
   let shopifyVariants: ShopifyInventoryVariant[] = [];
   try {
     const data = await shopifyGraphQL<{ product: { variants: { nodes: typeof shopifyVariants } } }>(GET_PRODUCT_VARIANTS, { id: shopifyProductId });
     shopifyVariants = data.product?.variants.nodes ?? [];
   } catch (error) {
-    return { warnings: [`Inventory variants could not be read from Shopify: ${error instanceof Error ? error.message : "Unknown error"}`], defaultInventoryItemId };
+    return { warnings: ["Inventory sync skipped because Shopify variants could not be read after creation."], defaultInventoryItemId };
   }
 
   const localVariants = product.has_variants && product.product_variants?.length ? product.product_variants : [{ id: "default", sku: product.sku, stock: product.stock, title: "Default Title" }];
@@ -520,7 +767,7 @@ async function syncProductInventory({ productId, shopifyProductId, defaultVarian
     const inventoryItemId = matched?.inventoryItem?.id;
     const sku = localVariant.sku || matched?.sku || matched?.title || "default variant";
     if (!inventoryItemId) {
-      failures.push(`${sku}: inventory item not found`);
+      failures.push(`Inventory for SKU ${sku} could not be synced.`);
       continue;
     }
     try {
@@ -528,23 +775,96 @@ async function syncProductInventory({ productId, shopifyProductId, defaultVarian
       await activateInventoryItemAtLocation(inventoryItemId, location.locationId);
       await setInventoryQuantity(inventoryItemId, location.locationId, Number(localVariant.stock ?? 0), productId);
       if (localVariant.id === "default") defaultInventoryItemId = inventoryItemId;
-      else await supabase.from("product_variants").update({ shopify_inventory_item_gid: inventoryItemId }).eq("id", localVariant.id);
+      else {
+        await supabase
+          .from("product_variants")
+          .update({
+            shopify_variant_gid: matched?.id ?? null,
+            shopify_variant_id: numericIdFromGid(matched?.id),
+            shopify_inventory_item_gid: inventoryItemId
+          })
+          .eq("id", localVariant.id);
+      }
     } catch (error) {
-      failures.push(`${sku}: ${error instanceof Error ? error.message : "Unknown error"}`);
+      failures.push(`Inventory for SKU ${sku} could not be synced.`);
     }
   }
 
-  if (failures.length) warnings.push(`Some inventory quantities could not be synced. Please review them in Shopify. ${failures.join(" | ")}`);
+  if (failures.length) warnings.push(failures.join(" "));
   return { warnings, defaultInventoryItemId };
 }
 
-function matchShopifyVariant(localVariant: Record<string, any>, shopifyVariants: { title: string; sku?: string | null; inventoryItem?: { id: string; tracked: boolean } | null }[]) {
+function matchShopifyVariant(localVariant: Record<string, any>, shopifyVariants: { id: string; title: string; sku?: string | null; selectedOptions?: { name: string; value: string }[]; inventoryItem?: { id: string; tracked: boolean } | null }[]) {
   if (localVariant.sku) {
     const bySku = shopifyVariants.find((variant) => variant.sku && variant.sku === localVariant.sku);
     if (bySku) return bySku;
   }
+  const bySelectedOptions = shopifyVariants.find((variant) => selectedOptionsMatch(localVariant, variant.selectedOptions ?? []));
+  if (bySelectedOptions) return bySelectedOptions;
   const title = [localVariant.option1_value, localVariant.option2_value, localVariant.option3_value].filter(Boolean).join(" / ") || "Default Title";
   return shopifyVariants.find((variant) => variant.title === title) ?? shopifyVariants[0];
+}
+
+function selectedOptionsMatch(localVariant: Record<string, any>, selectedOptions: { name: string; value: string }[]) {
+  const local = variantOptionValues(localVariant);
+  return local.length > 0 && local.every((option) => selectedOptions.some((selected) => selected.name === option.optionName && selected.value === option.name));
+}
+
+function validateLocalVariants(product: Record<string, any>) {
+  const variants = product.product_variants ?? [];
+  if (!variants.length) throw new Error("At least one variant is required.");
+  const missingPrice = variants.find((variant: Record<string, any>) => variant.price === null || variant.price === undefined || Number(variant.price) <= 0);
+  if (missingPrice) throw new Error("Variant price is required.");
+}
+
+function normaliseProductOptions(product: Record<string, any>) {
+  const rawOptions = Array.isArray(product.options) ? product.options : [];
+  return rawOptions
+    .slice(0, 3)
+    .map((option: Record<string, any>, index: number) => ({
+      name: String(option.name ?? `Option ${index + 1}`).trim(),
+      position: index + 1,
+      values: uniqueStrings(Array.isArray(option.values) ? option.values : [])
+    }))
+    .filter((option) => option.name && option.values.length);
+}
+
+function variantOptionValues(variant: Record<string, any>) {
+  return [
+    variant.option1_value ? { optionName: variant.option1_name || "Title", name: String(variant.option1_value).trim() } : null,
+    variant.option2_value ? { optionName: variant.option2_name || "Option 2", name: String(variant.option2_value).trim() } : null,
+    variant.option3_value ? { optionName: variant.option3_name || "Option 3", name: String(variant.option3_value).trim() } : null
+  ].filter((value): value is { optionName: string; name: string } => Boolean(value));
+}
+
+function generatedSku(product: Record<string, any>, variant: Record<string, any>) {
+  const base = String(product.sku || product.title || "variant").trim();
+  const suffix = [variant.option1_value, variant.option2_value, variant.option3_value].filter(Boolean).map(slugify).join("-");
+  return suffix ? `${slugify(base)}-${suffix}`.toUpperCase() : slugify(base).toUpperCase();
+}
+
+function slugify(value: unknown) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function uniqueStrings(values: unknown[]) {
+  const seen = new Set<string>();
+  return values.map((value) => String(value).trim()).filter((value) => {
+    if (!value || seen.has(value)) return false;
+    seen.add(value);
+    return true;
+  });
+}
+
+function inventoryPermissionWarning(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (message.toLowerCase().includes("access denied") || message.toLowerCase().includes("locations")) {
+    return "Inventory sync skipped because the Shopify app is missing inventory/location permissions.";
+  }
+  return `Inventory sync skipped: ${message || "No active Shopify location found."}`;
 }
 
 function money(value: unknown) {
@@ -580,7 +900,7 @@ export async function updateShopifyDraftProduct(productId: string) {
   const supabase = createAdminClient();
   const { data: product, error } = await supabase
     .from("vendor_products")
-    .select("*, vendors(*)")
+    .select("*, vendors(*), product_variants(*)")
     .eq("id", productId)
     .single();
 
@@ -599,6 +919,9 @@ export async function updateShopifyDraftProduct(productId: string) {
     ].filter(Boolean))
   );
   const descriptionHtml = buildDescriptionHtml(product.description_data) || product.final_description || product.ai_description || product.description || "";
+  const warnings: string[] = [];
+  const categoryResult = await resolveShopifyCategoryId(product.category, product.shopify_category_id);
+  if (categoryResult.warning) warnings.push(categoryResult.warning);
 
   let data: {
     productUpdate: {
@@ -607,21 +930,22 @@ export async function updateShopifyDraftProduct(productId: string) {
     };
   };
 
+  const updateInput = cleanObject({
+    id: product.shopify_product_gid,
+    title: product.title,
+    descriptionHtml,
+    vendor: vendorName,
+    productType: product.product_type || undefined,
+    category: categoryResult.categoryId || undefined,
+    tags,
+    seo: {
+      title: product.seo_title || product.title,
+      description: product.seo_description || undefined
+    }
+  });
+
   try {
-    data = await shopifyGraphQL<typeof data>(PRODUCT_UPDATE, {
-      input: {
-        id: product.shopify_product_gid,
-        title: product.title,
-        descriptionHtml,
-        vendor: vendorName,
-        productType: product.product_type || undefined,
-        tags,
-        seo: {
-          title: product.seo_title || product.title,
-          description: product.seo_description || undefined
-        }
-      }
-    });
+    data = await updateProductWithCategoryFallback(updateInput, warnings);
   } catch (error) {
     throw new ShopifyDraftCreationError("Shopify product update failed.", error instanceof Error ? error.message : error);
   }
@@ -630,7 +954,73 @@ export async function updateShopifyDraftProduct(productId: string) {
     throw new ShopifyDraftCreationError("Shopify product update failed.", data.productUpdate.userErrors);
   }
 
-  return { updated: true, warning: product.has_variants ? "Variants were saved in Vendor Portal but may need manual review in Shopify." : undefined };
+  if (product.has_variants) {
+    const variantResult = await syncShopifyVariantsForProduct(product);
+    warnings.push(...variantResult.warnings);
+  } else {
+    const inventoryResult = await syncProductInventory({ productId: product.id, shopifyProductId: product.shopify_product_gid, product });
+    warnings.push(...inventoryResult.warnings);
+  }
+
+  return { updated: true, warning: dedupeWarnings(warnings).join(" ") || undefined, warnings: dedupeWarnings(warnings) };
+}
+
+async function updateProductWithCategoryFallback(input: Record<string, unknown>, warnings: string[]) {
+  try {
+    const data = await shopifyGraphQL<{
+      productUpdate: {
+        product: { id: string; legacyResourceId: string; status: string } | null;
+        userErrors: { field?: string[]; message: string }[];
+      };
+    }>(PRODUCT_UPDATE, { input });
+    if ("category" in input && hasCategoryUserError(data.productUpdate.userErrors)) {
+      warnings.push("Category was saved in Vendor Portal but may need manual review in Shopify.");
+      const { category: _category, ...fallbackInput } = input;
+      return shopifyGraphQL<{
+        productUpdate: {
+          product: { id: string; legacyResourceId: string; status: string } | null;
+          userErrors: { field?: string[]; message: string }[];
+        };
+      }>(PRODUCT_UPDATE, { input: fallbackInput });
+    }
+    return data;
+  } catch (error) {
+    if ("category" in input && isCategoryInputError(error)) {
+      warnings.push("Category was saved in Vendor Portal but may need manual review in Shopify.");
+      const { category: _category, ...fallbackInput } = input;
+      return shopifyGraphQL<{
+        productUpdate: {
+          product: { id: string; legacyResourceId: string; status: string } | null;
+          userErrors: { field?: string[]; message: string }[];
+        };
+      }>(PRODUCT_UPDATE, { input: fallbackInput });
+    }
+    throw error;
+  }
+}
+
+function strictMatchShopifyVariant(localVariant: Record<string, any>, shopifyVariants: ShopifyInventoryVariant[]) {
+  if (localVariant.sku) {
+    const bySku = shopifyVariants.find((variant) => variant.sku && variant.sku === localVariant.sku);
+    if (bySku) return bySku;
+  }
+  const bySelectedOptions = shopifyVariants.find((variant) => selectedOptionsMatch(localVariant, variant.selectedOptions ?? []));
+  if (bySelectedOptions) return bySelectedOptions;
+  const title = [localVariant.option1_value, localVariant.option2_value, localVariant.option3_value].filter(Boolean).join(" / ");
+  return title ? shopifyVariants.find((variant) => variant.title === title) : undefined;
+}
+
+function dedupeWarnings(warnings: string[]) {
+  return Array.from(new Set(warnings.filter(Boolean)));
+}
+
+function isCategoryInputError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.toLowerCase().includes("category");
+}
+
+function hasCategoryUserError(errors: { field?: string[]; message: string }[]) {
+  return errors.some((error) => error.field?.some((field) => String(field).toLowerCase().includes("category")) || error.message.toLowerCase().includes("category"));
 }
 
 export async function archiveShopifyProduct(productId: string) {

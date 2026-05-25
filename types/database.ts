@@ -21,7 +21,7 @@ export type VendorProductRow = {
   category_id: string | null;
   shopify_category_id: string | null;
   tags: string[] | null;
-  price: number;
+  price: number | null;
   compare_at_price: number | null;
   cost_price: number | null;
   sku: string | null;
@@ -36,7 +36,7 @@ export type VendorProductRow = {
 export type VendorProductInsert = Partial<Omit<VendorProductRow, "id">> & {
   vendor_id: string;
   title: string;
-  price: number;
+  price?: number | null;
 };
 
 export type ProductVariantRow = {

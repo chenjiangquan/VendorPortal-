@@ -4,6 +4,7 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getDisplayPrice } from "@/lib/product-pricing";
 import { formatCurrency, shopifyAdminProductUrl } from "@/lib/utils";
 import { normaliseDescriptionData } from "@/lib/product-description";
 
@@ -31,7 +32,7 @@ export default async function AdminProductDetailPage({ params }: { params: Promi
         <section className="rounded-lg border border-line bg-white p-5">
           <div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">{product?.title}</h2><p className="text-sm text-slate-500">{product?.vendors?.company_name}</p></div><StatusBadge status={product?.status} /></div>
           <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">{(product?.product_images ?? []).map((image: any) => <div key={image.id} className="relative aspect-square overflow-hidden rounded-md border border-line bg-panel"><Image src={image.url} alt={image.alt_text ?? product.title} fill className="object-cover" /></div>)}</div>
-          <dl className="mt-5 grid gap-3 text-sm md:grid-cols-3"><div><dt className="text-slate-500">Price</dt><dd>{product?.has_variants ? "Variant pricing" : formatCurrency(product?.price)}</dd></div><div><dt className="text-slate-500">SKU</dt><dd>{product?.sku}</dd></div><div><dt className="text-slate-500">Stock</dt><dd>{product?.has_variants ? "Variant stock" : product?.stock}</dd></div><div><dt className="text-slate-500">Category</dt><dd>{product?.category}</dd></div><div><dt className="text-slate-500">Material</dt><dd>{product?.material}</dd></div><div><dt className="text-slate-500">Dimensions</dt><dd>{product?.dimensions}</dd></div></dl>
+          <dl className="mt-5 grid gap-3 text-sm md:grid-cols-3"><div><dt className="text-slate-500">Price</dt><dd>{getDisplayPrice(product)}</dd></div><div><dt className="text-slate-500">SKU</dt><dd>{product?.sku}</dd></div><div><dt className="text-slate-500">Stock</dt><dd>{product?.has_variants ? "Variant stock" : product?.stock}</dd></div><div><dt className="text-slate-500">Category</dt><dd>{product?.category}</dd></div><div><dt className="text-slate-500">Material</dt><dd>{product?.material}</dd></div><div><dt className="text-slate-500">Dimensions</dt><dd>{product?.dimensions}</dd></div></dl>
           <div className="mt-6 rounded-2xl border border-line bg-panel p-5">
             <h3 className="font-semibold">Structured Description Preview</h3>
             <div className="mt-4 grid gap-5 md:grid-cols-2">

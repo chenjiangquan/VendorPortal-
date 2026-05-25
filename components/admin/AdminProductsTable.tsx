@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { getDisplayPrice } from "@/lib/product-pricing";
+import { formatDate } from "@/lib/utils";
 
 type AdminProductRow = {
   id: string;
   title: string;
   sku?: string | null;
   price?: number | null;
+  has_variants?: boolean | null;
+  product_variants?: { price?: number | null }[];
   status: string;
   created_at?: string | null;
   shopify_product_gid?: string | null;
@@ -119,7 +122,7 @@ export function AdminProductsTable({ products }: { products: AdminProductRow[] }
                   <td className="px-4 py-3"><Link href={href} onClick={(event) => event.stopPropagation()} className="font-medium text-ink hover:underline">{product.title}</Link></td>
                   <td className="px-4 py-3">{product.vendors?.company_name ?? "-"}</td>
                   <td className="px-4 py-3">{product.sku || "-"}</td>
-                  <td className="px-4 py-3">{formatCurrency(product.price)}</td>
+                  <td className="px-4 py-3">{getDisplayPrice(product)}</td>
                   <td className="px-4 py-3"><StatusBadge status={product.status} /></td>
                   <td className="px-4 py-3">{formatDate(product.created_at)}</td>
                 </tr>
