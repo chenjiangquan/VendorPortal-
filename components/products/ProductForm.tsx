@@ -128,9 +128,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
     <form ref={formRef} className="space-y-5">
       <Section title="Basic Information">
         <Field name="title" label="Title" requiredMark defaultValue={product?.title} required disabled={readOnly} />
-        <Field name="product_type" label="Product type" defaultValue={product?.product_type} disabled={readOnly} />
         <CategorySelector defaultCategory={product?.category} defaultCategoryId={product?.category_id} defaultShopifyCategoryId={product?.shopify_category_id} disabled={readOnly} />
-        <Field name="tags" label="Tags" defaultValue={(product?.tags ?? []).join(", ")} disabled={readOnly} />
       </Section>
 
       <Section title="Description">
@@ -155,7 +153,6 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
         <MoneyField name="price" label="Price" requiredMark={!hasVariants} value={mainPrice} placeholder={hasVariants ? "Set prices in variants below" : undefined} onChange={(event) => setMainPrice(event.target.value)} required={!hasVariants} disabled={readOnly || hasVariants} />
         <MoneyField name="compare_at_price" label="Compare at price" value={mainCompareAtPrice} placeholder={hasVariants ? "Set compare-at prices in variants below" : undefined} onChange={(event) => setMainCompareAtPrice(event.target.value)} disabled={readOnly || hasVariants} />
         <Field name="sku" label="SKU" defaultValue={product?.sku} disabled={readOnly} />
-        <Field name="barcode" label="Barcode" defaultValue={product?.barcode} disabled={readOnly} />
         <Field name="stock" label="Stock" requiredMark={!hasVariants} type="number" value={mainStock} placeholder={hasVariants ? "Set stock in variants below" : undefined} onChange={(event) => setMainStock(event.target.value)} required={!hasVariants} disabled={readOnly || hasVariants} />
       </Section>
 
@@ -187,7 +184,6 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
               setMainCompareAtPrice("");
               setMainStock("0");
             }
-            if (!enabled && hasVariants && !window.confirm("Turning off variants will use the main product price and stock instead.")) return;
             setHasVariants(enabled);
           }}
           onOptionsChange={setOptions}

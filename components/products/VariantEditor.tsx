@@ -200,7 +200,6 @@ export function VariantEditor({
                   <th className="px-3 py-3">Compare</th>
                   <th className="px-3 py-3">SKU</th>
                   <th className="px-3 py-3">Stock</th>
-                  <th className="px-3 py-3">Barcode</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -211,7 +210,6 @@ export function VariantEditor({
                     <td className="px-3 py-3"><MoneyCellInput value={variant.compare_at_price ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { compare_at_price: value ? Number(value) : null }, onVariantsChange)} /></td>
                     <td className="px-3 py-3"><CellInput value={variant.sku ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { sku: value }, onVariantsChange)} /></td>
                     <td className="px-3 py-3"><CellInput type="number" value={variant.stock ?? 0} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { stock: Number(value) }, onVariantsChange)} /></td>
-                    <td className="px-3 py-3"><CellInput value={variant.barcode ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { barcode: value }, onVariantsChange)} /></td>
                   </tr>
                 ))}
               </tbody>
