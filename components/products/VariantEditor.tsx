@@ -207,8 +207,8 @@ export function VariantEditor({
                 {variants.map((variant, index) => (
                   <tr key={index}>
                     <td className="px-3 py-3 font-medium">{[variant.option1_value, variant.option2_value, variant.option3_value].filter(Boolean).join(" / ")}</td>
-                    <td className="px-3 py-3"><CellInput type="number" value={variant.price ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { price: Number(value) }, onVariantsChange)} /></td>
-                    <td className="px-3 py-3"><CellInput type="number" value={variant.compare_at_price ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { compare_at_price: value ? Number(value) : null }, onVariantsChange)} /></td>
+                    <td className="px-3 py-3"><MoneyCellInput value={variant.price ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { price: Number(value) }, onVariantsChange)} /></td>
+                    <td className="px-3 py-3"><MoneyCellInput value={variant.compare_at_price ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { compare_at_price: value ? Number(value) : null }, onVariantsChange)} /></td>
                     <td className="px-3 py-3"><CellInput value={variant.sku ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { sku: value }, onVariantsChange)} /></td>
                     <td className="px-3 py-3"><CellInput type="number" value={variant.stock ?? 0} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { stock: Number(value) }, onVariantsChange)} /></td>
                     <td className="px-3 py-3"><CellInput value={variant.barcode ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { barcode: value }, onVariantsChange)} /></td>
@@ -225,6 +225,15 @@ export function VariantEditor({
 
 function CellInput({ value, onChange, type = "text", readOnly }: { value: string | number; onChange: (value: string) => void; type?: string; readOnly?: boolean }) {
   return <input type={type} disabled={readOnly} value={value} onChange={(event) => onChange(event.target.value)} className="focus-ring w-full rounded-lg border border-line px-2 py-1 text-sm disabled:bg-panel" />;
+}
+
+function MoneyCellInput({ value, onChange, readOnly }: { value: string | number; onChange: (value: string) => void; readOnly?: boolean }) {
+  return (
+    <div className="flex overflow-hidden rounded-lg border border-line bg-white focus-within:ring-2 focus-within:ring-slate-900/10">
+      <span className="flex items-center border-r border-line bg-panel px-2 text-xs font-semibold text-slate-500">$</span>
+      <input type="number" disabled={readOnly} value={value} onChange={(event) => onChange(event.target.value)} className="w-full border-0 px-2 py-1 text-sm outline-none disabled:bg-panel" />
+    </div>
+  );
 }
 
 function updateVariant(variants: VariantRow[], index: number, patch: Partial<VariantRow>, onChange: (variants: VariantRow[]) => void) {

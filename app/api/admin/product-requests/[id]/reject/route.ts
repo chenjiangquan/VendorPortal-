@@ -8,7 +8,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
   const adminNote = String(body.admin_note ?? "").trim();
-  if (!adminNote) return NextResponse.json({ error: "Admin note is required." }, { status: 400 });
 
   try {
     const data = await rejectProductRequest(ctx, id, adminNote);

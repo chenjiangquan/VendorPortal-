@@ -1,7 +1,9 @@
+import { ProductChangeDiffPanel } from "@/components/admin/ProductChangeDiffPanel";
 import { ProductRequestReviewPanel } from "@/components/admin/ProductRequestReviewPanel";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireRole } from "@/lib/auth";
+import { getProductChangeDiff } from "@/lib/product-diff";
 import { normaliseDescriptionData } from "@/lib/product-description";
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrency } from "@/lib/utils";
@@ -22,6 +24,7 @@ export default async function AdminEditRequestDetailPage({ params }: { params: P
   const proposed = request.proposed_data ?? {};
   const currentDescription = normaliseDescriptionData(product?.description_data);
   const proposedDescription = normaliseDescriptionData(proposed.description_data);
+  const diff = getProductChangeDiff(product ?? {}, proposed as Record<string, any>);
 
   return (
     <DashboardShell role="admin" title="Edit Request">
@@ -38,6 +41,7 @@ export default async function AdminEditRequestDetailPage({ params }: { params: P
             <CompareCard title="Current product" product={product} description={currentDescription} />
             <CompareCard title="Proposed changes" product={proposed} description={proposedDescription} />
           </div>
+          <ProductChangeDiffPanel diff={diff} />
         </section>
         <ProductRequestReviewPanel requestId={request.id} type="edit" />
       </div>

@@ -18,6 +18,8 @@ export type VendorProductRow = {
   description_data: Json | null;
   product_type: string | null;
   category: string | null;
+  category_id: string | null;
+  shopify_category_id: string | null;
   tags: string[] | null;
   price: number;
   compare_at_price: number | null;
@@ -28,6 +30,7 @@ export type VendorProductRow = {
   status: ProductStatus;
   has_variants: boolean | null;
   options: Json | null;
+  shopify_inventory_item_gid: string | null;
 };
 
 export type VendorProductInsert = Partial<Omit<VendorProductRow, "id">> & {
@@ -51,6 +54,7 @@ export type ProductVariantRow = {
   price: number | null;
   compare_at_price: number | null;
   stock: number | null;
+  shopify_inventory_item_gid: string | null;
 };
 
 export type ProductChangeRequestRow = {

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const optionalMoney = z.preprocess((value) => value === "" || value === undefined ? null : value, z.coerce.number().optional().nullable());
+
 export const vendorCreateSchema = z.object({
   company_name: z.string().min(2),
   contact_name: z.string().min(2),
@@ -19,10 +21,12 @@ export const productDraftSchema = z.object({
   description_data: z.unknown().optional().nullable(),
   product_type: z.string().optional().nullable(),
   category: z.string().optional().nullable(),
+  category_id: z.string().optional().nullable(),
+  shopify_category_id: z.string().optional().nullable(),
   tags: z.array(z.string()).default([]),
-  price: z.coerce.number().positive(),
-  compare_at_price: z.coerce.number().optional().nullable(),
-  cost_price: z.coerce.number().optional().nullable(),
+  price: z.coerce.number().min(0),
+  compare_at_price: optionalMoney,
+  cost_price: optionalMoney,
   sku: z.string().optional().nullable(),
   barcode: z.string().optional().nullable(),
   stock: z.coerce.number().int().min(0).default(0),
@@ -48,7 +52,7 @@ export const productDraftSchema = z.object({
     sku: z.string().optional().nullable(),
     barcode: z.string().optional().nullable(),
     price: z.coerce.number().optional().nullable(),
-    compare_at_price: z.coerce.number().optional().nullable(),
+    compare_at_price: optionalMoney,
     stock: z.coerce.number().int().min(0).optional().nullable()
   })).optional(),
   pending_images: z.array(z.object({

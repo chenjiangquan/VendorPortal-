@@ -39,10 +39,10 @@ export function ProductRequestReviewPanel({ requestId, type }: { requestId: stri
           {type === "edit" ? "Approve update" : "Approve delete"}
         </button>
         <label className="block">
-          <span className="text-sm font-medium text-slate-700">Reject note</span>
+          <span className="text-sm font-medium text-slate-700">Reason for rejection</span>
           <textarea value={adminNote} onChange={(event) => setAdminNote(event.target.value)} rows={3} className="focus-ring mt-1 w-full rounded-xl border border-line px-4 py-2 text-sm shadow-sm" />
         </label>
-        <button disabled={loading || !adminNote.trim()} onClick={() => post("reject")} className="w-full rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
+        <button disabled={loading} onClick={() => post("reject")} className="w-full rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
           Reject request
         </button>
       </div>

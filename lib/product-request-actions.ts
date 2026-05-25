@@ -8,6 +8,8 @@ const PRODUCT_FIELDS = [
   "final_description",
   "product_type",
   "category",
+  "category_id",
+  "shopify_category_id",
   "tags",
   "price",
   "compare_at_price",
@@ -59,6 +61,26 @@ export async function approveEditRequest(ctx: any, requestId: string) {
         }))
       );
       if (insertError) throw new Error(insertError.message);
+    }
+  }
+
+  if ("product_images" in proposed) {
+    const images = Array.isArray(proposed.product_images) ? proposed.product_images : [];
+    const { error: deleteImagesError } = await ctx.supabase.from("product_images").delete().eq("product_id", request.product_id);
+    if (deleteImagesError) throw new Error(deleteImagesError.message);
+    const activeImages = images.filter((image: Record<string, unknown>) => image?.url && image.action !== "remove");
+    if (activeImages.length) {
+      const { error: insertImagesError } = await ctx.supabase.from("product_images").insert(
+        activeImages.map((image: Record<string, unknown>, index: number) => ({
+          product_id: request.product_id,
+          vendor_id: request.vendor_id,
+          url: image.url,
+          storage_path: image.storage_path ?? null,
+          alt_text: image.alt_text ?? "",
+          position: Number(image.position ?? index)
+        }))
+      );
+      if (insertImagesError) throw new Error(insertImagesError.message);
     }
   }
 
@@ -129,5 +151,13 @@ export async function rejectProductRequest(ctx: any, requestId: string, adminNot
     .single();
 
   if (error) throw new Error(error.message);
+  await ctx.supabase.from("activity_logs").insert({
+    user_id: ctx.profile.id,
+    vendor_id: data.vendor_id,
+    action: data.request_type === "edit" ? "product_update_request_rejected" : "product_delete_request_rejected",
+    entity_type: "product_change_requests",
+    entity_id: data.id,
+    metadata: { product_id: data.product_id }
+  });
   return data;
 }

@@ -72,7 +72,7 @@ export async function POST(request: Request) {
   return NextResponse.json({ product: data, message: "AI output applied successfully." });
 }
 
-function mergeDetails(current: { label: string; value: string; locked?: boolean }[], incoming: { label?: string; value?: string }[]) {
+function mergeDetails(current: { id?: string; label: string; value: string; locked?: boolean }[], incoming: { label?: string; value?: string }[]) {
   const rows = current.map((row) => ({ ...row }));
   for (const item of incoming) {
     const label = String(item.label ?? "").trim();
@@ -82,7 +82,7 @@ function mergeDetails(current: { label: string; value: string; locked?: boolean 
     if (existing) {
       existing.value = value;
     } else {
-      rows.push({ label, value });
+      rows.push({ id: `custom-${Date.now()}-${rows.length}`, label, value });
     }
   }
   return rows;

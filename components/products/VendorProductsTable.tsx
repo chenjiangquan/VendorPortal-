@@ -20,7 +20,19 @@ type VendorProductRow = {
   product_change_requests?: { request_type: string; status: string }[];
 };
 
-export function VendorProductsTable({ products, requestFilter }: { products: VendorProductRow[]; requestFilter?: "edit" | "delete" }) {
+export function VendorProductsTable({
+  products,
+  requestFilter,
+  status,
+  sort,
+  direction
+}: {
+  products: VendorProductRow[];
+  requestFilter?: "edit" | "delete";
+  status?: string;
+  sort?: string;
+  direction?: string;
+}) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -47,19 +59,17 @@ export function VendorProductsTable({ products, requestFilter }: { products: Ven
         <table className="w-full text-left text-sm">
           <thead className="bg-panel text-xs uppercase text-slate-500">
             <tr>
-              <th className="px-4 py-3">Title</th>
+              <SortableHeader label="Title" field="title" status={status} sort={sort} direction={direction} />
               <th className="px-4 py-3">SKU</th>
-              <th className="px-4 py-3">Price</th>
+              <SortableHeader label="Price" field="price" status={status} sort={sort} direction={direction} />
               <th className="px-4 py-3">Stock</th>
               <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Created</th>
-              <th className="px-4 py-3 text-right">Action</th>
+              <SortableHeader label="Created" field="created_at" status={status} sort={sort} direction={direction} />
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
             {filteredProducts.map((product) => {
               const href = `/vendor/products/${product.id}`;
-              const editable = ["draft", "rejected"].includes(product.status);
               const canRequestChanges = ["approved", "shopify_draft"].includes(product.status);
               const pending = product.product_change_requests?.filter((request) => request.status === "pending") ?? [];
               return (
@@ -77,11 +87,6 @@ export function VendorProductsTable({ products, requestFilter }: { products: Ven
                   <td className="px-4 py-3">{product.stock}</td>
                   <td className="px-4 py-3"><StatusBadge status={product.status} /></td>
                   <td className="px-4 py-3">{formatDate(product.created_at)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <Link href={href} onClick={(event) => event.stopPropagation()} className="inline-flex items-center rounded-xl border border-line bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-sm hover:bg-panel">
-                      {editable ? "Edit" : canRequestChanges ? "Manage requests" : "View"}
-                    </Link>
-                  </td>
                 </tr>
               );
             })}
@@ -91,4 +96,28 @@ export function VendorProductsTable({ products, requestFilter }: { products: Ven
       </div>
     </div>
   );
+}
+
+function SortableHeader({ label, field, status, sort, direction }: { label: string; field: string; status?: string; sort?: string; direction?: string }) {
+  return (
+    <th className="px-4 py-3">
+      <Link href={sortHref(field, status, sort, direction)} className="inline-flex items-center gap-1 hover:text-ink">
+        {label} <span>{sort === field ? direction === "asc" ? "↑" : "↓" : "↕"}</span>
+      </Link>
+    </th>
+  );
+}
+
+function sortHref(field: string, status?: string, sort?: string, direction?: string) {
+  const params = new URLSearchParams();
+  if (status && status !== "active") params.set("status", status);
+  if (sort !== field) {
+    params.set("sort", field);
+    params.set("direction", "asc");
+  } else if (direction === "asc") {
+    params.set("sort", field);
+    params.set("direction", "desc");
+  }
+  const query = params.toString();
+  return query ? `/vendor/products?${query}` : "/vendor/products";
 }

@@ -22,7 +22,7 @@ SHOPIFY_STORE_DOMAIN=
 SHOPIFY_API_VERSION=2026-01
 SHOPIFY_CLIENT_ID=
 SHOPIFY_CLIENT_SECRET=
-SHOPIFY_SCOPES=read_orders,read_products,write_products
+SHOPIFY_SCOPES=read_orders,read_products,write_products,read_inventory,write_inventory
 SHOPIFY_APP_URL=
 OPENAI_API_KEY=
 APP_URL=
@@ -95,9 +95,11 @@ Set requested scopes in `SHOPIFY_SCOPES`, for example:
 - `write_products`
 - `read_products`
 - `read_orders`
-- `read_inventory` optional
-- `write_inventory` optional
+- `read_inventory`
+- `write_inventory`
 - `write_fulfillments` optional future scope
+
+Inventory sync uses Shopify Inventory Item and Inventory Level APIs, so `read_inventory` and `write_inventory` are required if you want Vendor Portal stock values to sync into Shopify. After changing scopes in the Shopify Dev Dashboard, release the new app version and reconnect Shopify from `/admin/settings`.
 
 In the Shopify Dev Dashboard, add this Allowed redirection URL for local development:
 
@@ -206,7 +208,7 @@ SHOPIFY_STORE_DOMAIN=direct-source-home.myshopify.com
 SHOPIFY_API_VERSION=2026-01
 SHOPIFY_CLIENT_ID=your_shopify_client_id
 SHOPIFY_CLIENT_SECRET=your_shopify_client_secret
-SHOPIFY_SCOPES=read_orders,read_products,write_products
+SHOPIFY_SCOPES=read_orders,read_products,write_products,read_inventory,write_inventory
 SHOPIFY_APP_URL=https://vendors.directsourcehome.com
 
 OPENAI_API_KEY=

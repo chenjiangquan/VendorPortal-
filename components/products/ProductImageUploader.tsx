@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { ArrowDown, ArrowUp, Trash2, Upload } from "lucide-react";
+import { GripVertical, X, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 
@@ -12,6 +12,7 @@ export type ProductImageDraft = {
   storage_path: string;
   alt_text?: string | null;
   position?: number;
+  action?: "keep" | "add" | "update" | "remove";
 };
 
 export function ProductImageUploader({
@@ -19,6 +20,7 @@ export function ProductImageUploader({
   vendorId,
   existing,
   readOnly,
+  staging = false,
   onChange,
   onImagesChange
 }: {
@@ -26,18 +28,20 @@ export function ProductImageUploader({
   vendorId: string;
   existing: ProductImageDraft[];
   readOnly?: boolean;
+  staging?: boolean;
   onChange?: (count: number) => void;
   onImagesChange?: (images: ProductImageDraft[]) => void;
 }) {
   const [images, setImages] = useState<ProductImageDraft[]>(sortImages(existing));
   const [uploading, setUploading] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   function commit(next: ProductImageDraft[]) {
     const sorted = next.map((image, index) => ({ ...image, position: index }));
     setImages(sorted);
     onChange?.(sorted.length);
     onImagesChange?.(sorted);
-    if (productId) {
+    if (productId && !staging) {
       fetch(`/api/vendor/products/${productId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -73,8 +77,8 @@ export function ProductImageUploader({
         continue;
       }
       const { data } = supabase.storage.from("product-images").getPublicUrl(path);
-      const draftImage = { id: crypto.randomUUID(), url: data.publicUrl, storage_path: path, alt_text: "", position: images.length + uploaded.length };
-      if (!productId) {
+      const draftImage = { id: crypto.randomUUID(), url: data.publicUrl, storage_path: path, alt_text: "", position: images.length + uploaded.length, action: "add" as const };
+      if (!productId || staging) {
         uploaded.push(draftImage);
         continue;
       }
@@ -95,10 +99,10 @@ export function ProductImageUploader({
   }
 
   async function updateAlt(id: string, altText: string) {
-    const next = images.map((image) => (image.id === id ? { ...image, alt_text: altText } : image));
+    const next = images.map((image) => (image.id === id ? { ...image, alt_text: altText, action: image.action === "add" ? "add" as const : "update" as const } : image));
     setImages(next);
     onImagesChange?.(next);
-    if (!productId) return;
+    if (!productId || staging) return;
     const res = await fetch(`/api/vendor/products/${productId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -109,8 +113,8 @@ export function ProductImageUploader({
 
   async function remove(image: ProductImageDraft) {
     const supabase = createClient();
-    if (image.storage_path) await supabase.storage.from("product-images").remove([image.storage_path]);
-    if (productId) {
+    if (image.storage_path && (!staging || image.action === "add")) await supabase.storage.from("product-images").remove([image.storage_path]);
+    if (productId && !staging) {
       const res = await fetch(`/api/vendor/products/${productId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -125,11 +129,14 @@ export function ProductImageUploader({
     toast.success("Image removed.");
   }
 
-  function move(index: number, direction: -1 | 1) {
-    const target = index + direction;
-    if (target < 0 || target >= images.length) return;
+  function moveByDrag(targetId: string) {
+    if (!draggingId || draggingId === targetId) return;
+    const from = images.findIndex((image) => image.id === draggingId);
+    const to = images.findIndex((image) => image.id === targetId);
+    if (from < 0 || to < 0) return;
     const next = [...images];
-    [next[index], next[target]] = [next[target], next[index]];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
     commit(next);
   }
 
@@ -144,27 +151,44 @@ export function ProductImageUploader({
         </label>
       )}
 
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {images.map((image, index) => (
-          <div key={image.id} className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+          <div
+            key={image.id}
+            draggable={!readOnly}
+            onDragStart={() => setDraggingId(image.id)}
+            onDragEnd={() => setDraggingId(null)}
+            onDragOver={(event) => {
+              if (!readOnly) event.preventDefault();
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              moveByDrag(image.id);
+              setDraggingId(null);
+            }}
+            className={`group overflow-hidden rounded-2xl border border-line bg-white shadow-sm transition ${draggingId === image.id ? "scale-[0.98] opacity-60" : ""} ${readOnly ? "" : "cursor-grab active:cursor-grabbing"}`}
+          >
             <div className="relative aspect-square bg-panel">
               <Image src={image.url} alt={image.alt_text ?? "Product image"} fill className="object-cover" />
-              <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-1 text-xs font-semibold shadow-sm">#{index + 1}</span>
+              <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-semibold shadow-sm">
+                {!readOnly && <GripVertical className="h-3 w-3 text-slate-400" />}#{index + 1}
+              </span>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => remove(image)}
+                  className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm transition hover:bg-red-50 hover:text-red-600"
+                  title="Remove image"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
-            <div className="space-y-3 p-3">
+            <div className="p-3">
               <label className="block">
                 <span className="text-xs font-medium text-slate-500">Alt text</span>
                 <input value={image.alt_text ?? ""} disabled={readOnly} onChange={(event) => updateAlt(image.id, event.target.value)} className="focus-ring mt-1 w-full rounded-xl border border-line px-3 py-2 text-sm disabled:bg-panel" />
               </label>
-              {!readOnly && (
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" disabled={index === 0} onClick={() => move(index, -1)} className="rounded-xl border border-line p-2 shadow-sm disabled:opacity-40" title="Move up"><ArrowUp className="h-4 w-4" /></button>
-                  <button type="button" disabled={index === images.length - 1} onClick={() => move(index, 1)} className="rounded-xl border border-line p-2 shadow-sm disabled:opacity-40" title="Move down"><ArrowDown className="h-4 w-4" /></button>
-                  <button type="button" onClick={() => remove(image)} className="inline-flex items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm font-semibold shadow-sm">
-                    <Trash2 className="h-4 w-4" /> Remove
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         ))}

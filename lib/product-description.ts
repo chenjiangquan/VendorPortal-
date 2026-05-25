@@ -1,4 +1,5 @@
 export type DescriptionDetailRow = {
+  id: string;
   label: string;
   value: string;
   locked?: boolean;
@@ -10,9 +11,9 @@ export type DescriptionData = {
 };
 
 const requiredDetails: DescriptionDetailRow[] = [
-  { label: "Colour", value: "", locked: true },
-  { label: "Material", value: "", locked: true },
-  { label: "Assembly", value: "", locked: true }
+  { id: "colour", label: "Colour", value: "", locked: true },
+  { id: "material", label: "Material", value: "", locked: true },
+  { id: "assembly", label: "Assembly", value: "", locked: true }
 ];
 
 export function normaliseOverviewLines(input: string) {
@@ -39,7 +40,12 @@ export function normaliseDescriptionData(value: unknown): DescriptionData {
     .filter((row) => row && typeof row === "object")
     .map((row) => row as DescriptionDetailRow)
     .filter((row) => row.label && !requiredDetails.some((required) => required.label === row.label))
-    .map((row) => ({ label: String(row.label).trim(), value: String(row.value ?? "").trim(), locked: Boolean(row.locked) }));
+    .map((row, index) => ({
+      id: String(row.id ?? `custom-${index}-${row.label}`).trim(),
+      label: String(row.label).trim(),
+      value: String(row.value ?? "").trim(),
+      locked: Boolean(row.locked)
+    }));
 
   return {
     overview,

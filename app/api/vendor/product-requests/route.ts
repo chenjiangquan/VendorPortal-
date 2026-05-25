@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   }
 
   const proposedData = requestType === "edit"
-    ? { ...(body.proposed_data ?? {}), product_images: product.product_images ?? [] }
+    ? { ...(body.proposed_data ?? {}), product_images: body.proposed_data?.product_images ?? product.product_images ?? [] }
     : { snapshot: product };
 
   const { data, error } = await ctx.supabase
