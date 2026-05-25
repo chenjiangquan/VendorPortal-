@@ -33,7 +33,7 @@ export function CreateVendorForm() {
           <Field name="company_name" label="Company name" required />
           <Field name="contact_name" label="Contact name" required />
           <Field name="email" label="Email" type="email" required />
-          <Field name="temporary_password" label="Temporary password" type="text" required minLength={10} />
+          <Field name="temporary_password" label="Temporary password" type="text" required />
           <Field name="phone" label="Phone" />
           <Field name="country" label="Country" defaultValue="United Kingdom" />
           <Field name="city" label="City" />

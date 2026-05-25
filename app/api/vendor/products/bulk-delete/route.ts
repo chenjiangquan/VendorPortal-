@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireVendorApi } from "@/lib/permissions";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   const ctx = await requireVendorApi();
   if ("error" in ctx) return ctx.error;
+  const adminSupabase = createAdminClient();
 
   const body = await request.json().catch(() => ({}));
   const productIds = Array.isArray(body.productIds) ? body.productIds.filter((id: unknown) => typeof id === "string") : [];
@@ -32,7 +34,7 @@ export async function POST(request: Request) {
           .eq("status", "pending")
           .maybeSingle();
         if (existing) continue;
-        const { error: requestError } = await ctx.supabase.from("product_change_requests").insert({
+        const { error: requestError } = await adminSupabase.from("product_change_requests").insert({
           product_id: product.id,
           vendor_id: ctx.vendor.id,
           request_type: "delete",
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
       }
 
       if (product.status === "archived") continue;
-      const { error: archiveError } = await ctx.supabase
+      const { error: archiveError } = await adminSupabase
         .from("vendor_products")
         .update({ status: "archived", updated_at: new Date().toISOString() })
         .eq("id", product.id)
@@ -57,7 +59,7 @@ export async function POST(request: Request) {
     }
   }
 
-  await ctx.supabase.from("activity_logs").insert({
+  await adminSupabase.from("activity_logs").insert({
     user_id: ctx.profile.id,
     vendor_id: ctx.vendor.id,
     action: "vendor_products_bulk_delete_requested",

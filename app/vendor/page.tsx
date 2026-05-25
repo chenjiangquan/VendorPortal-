@@ -8,7 +8,7 @@ export default async function VendorPage() {
   const { vendor } = await requireVendor();
   const supabase = await createClient();
   const [products, orders, tracking] = await Promise.all([
-    supabase.from("vendor_products").select("id", { count: "exact", head: true }).eq("vendor_id", vendor.id),
+    supabase.from("vendor_products").select("id", { count: "exact", head: true }).eq("vendor_id", vendor.id).in("status", ["approved", "shopify_draft"]),
     supabase.from("vendor_orders").select("id", { count: "exact", head: true }).eq("vendor_id", vendor.id),
     supabase.from("tracking_submissions").select("id", { count: "exact", head: true }).eq("vendor_id", vendor.id)
   ]);

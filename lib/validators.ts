@@ -7,7 +7,7 @@ export const vendorCreateSchema = z.object({
   company_name: z.string().min(2),
   contact_name: z.string().min(2),
   email: z.string().email(),
-  temporary_password: z.string().min(10),
+  temporary_password: z.string().min(1, "Temporary password is required."),
   phone: z.string().optional().nullable(),
   country: z.string().default("United Kingdom"),
   city: z.string().optional().nullable(),
