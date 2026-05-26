@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { flattenCategories, ProductCategory, shopifyFurnitureCategories } from "@/lib/shopify-categories";
+import { useI18n } from "@/lib/i18n";
 
 export function CategorySelector({
   defaultCategory,
@@ -15,6 +16,7 @@ export function CategorySelector({
   defaultShopifyCategoryId?: string | null;
   disabled?: boolean;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [path, setPath] = useState<ProductCategory[]>([]);
@@ -46,7 +48,7 @@ export function CategorySelector({
   return (
     <div className="relative md:col-span-2">
       <label>
-        <span className="text-sm font-medium text-slate-700">Category</span>
+        <span className="text-sm font-medium text-slate-700">{t("product.category")}</span>
         <button type="button" disabled={disabled} onClick={() => setOpen(!open)} className="mt-1 flex w-full items-center justify-between rounded-xl border border-line bg-white px-4 py-2 text-left text-sm shadow-sm disabled:bg-panel">
           <span className={selected.category ? "text-ink" : "text-slate-400"}>{selected.category || "Select category"}</span>
           <ChevronRight className="h-4 w-4 text-slate-400" />

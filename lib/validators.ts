@@ -62,25 +62,6 @@ export const productDraftSchema = z.object({
     alt_text: z.string().optional().nullable(),
     position: z.coerce.number().int().min(0).optional()
   })).optional()
-}).superRefine((data, ctx) => {
-  if (data.has_variants) {
-    if (!data.variants?.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Please add at least one variant.", path: ["variants"] });
-    }
-    if (data.variants?.some((variant) => variant.price === null || variant.price === undefined || Number(variant.price) <= 0)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Please complete price for all variants before submitting.", path: ["variants"] });
-    }
-    if (data.variants?.some((variant) => variant.stock === null || variant.stock === undefined || Number(variant.stock) < 0)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Please complete stock for all variants before submitting.", path: ["variants"] });
-    }
-    return;
-  }
-  if (data.price === null || data.price === undefined || Number(data.price) <= 0) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Please complete Price before submitting.", path: ["price"] });
-  }
-  if (data.stock === null || data.stock === undefined || Number(data.stock) < 0) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Please complete Stock before submitting.", path: ["stock"] });
-  }
 });
 
 export const productSubmitSchema = productDraftSchema.safeExtend({

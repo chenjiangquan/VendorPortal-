@@ -45,7 +45,7 @@ export default async function VendorProductsPage({ searchParams }: { searchParam
             ["submitted", "Submitted"],
             ["approved", "Approved"],
             ["rejected", "Rejected"],
-            ["shopify_draft", "Shopify Draft Created"],
+            ["shopify_draft", "Live"],
             ["update_pending", "Update Pending"],
             ["delete_pending", "Delete Pending"],
             ["archived", "Archived"]

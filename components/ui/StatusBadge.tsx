@@ -19,11 +19,11 @@ const styles: Record<string, string> = {
   cancelled: "bg-red-100 text-red-800"
 };
 
-export function StatusBadge({ status, className }: { status?: string | null; className?: string }) {
+export function StatusBadge({ status, label, className }: { status?: string | null; label?: string; className?: string }) {
   const value = status ?? "unknown";
   return (
     <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-semibold", styles[value] ?? styles.draft, className)}>
-      {value.replaceAll("_", " ")}
+      {label ?? value.replaceAll("_", " ")}
     </span>
   );
 }

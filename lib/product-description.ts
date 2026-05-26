@@ -19,7 +19,7 @@ const requiredDetails: DescriptionDetailRow[] = [
 export function normaliseOverviewLines(input: string) {
   return input
     .split(/\r?\n/)
-    .map((line) => line.replace(/^[-*]\s*/, "").trim())
+    .map((line) => line.replace(/^[-*•]\s*/, "").trim())
     .filter(Boolean);
 }
 
@@ -64,12 +64,17 @@ export function buildDescriptionHtml(descriptionData?: unknown) {
   const overviewItems = data.overview.map((line) => `<li>${escapeHtml(line)}</li>`).join("");
   const detailRows = data.details
     .filter((row) => row.label.trim() && row.value.trim())
-    .map((row) => `<tr><td>${escapeHtml(row.label)}</td><td>${escapeHtml(row.value)}</td></tr>`)
+    .map((row) => `<tr><th>${escapeHtml(row.label)}</th><td>${escapeHtml(row.value)}</td></tr>`)
     .join("");
 
-  const overviewHtml = overviewItems ? `<h2>Product Overview</h2><ul>${overviewItems}</ul>` : "";
-  const detailsHtml = detailRows ? `<h2>Details</h2><table><tbody>${detailRows}</tbody></table>` : "";
-  return [overviewHtml, detailsHtml].filter(Boolean).join("\n\n");
+  const overviewHtml = overviewItems
+    ? `<div class="seo-overview-section"><h2 class="seo-overview-title">Product Overview</h2><ul class="seo-overview-list">${overviewItems}</ul></div>`
+    : "";
+  const detailsHtml = detailRows
+    ? `<div class="seo-details-section"><h2 class="seo-details-title">Details</h2><div class="seo-table-wrap"><table class="seo-product-details-table"><tbody>${detailRows}</tbody></table></div></div>`
+    : "";
+  const content = [overviewHtml, detailsHtml].filter(Boolean).join("");
+  return content ? `<div class="seo-product-description">${content}</div>` : "";
 }
 
 function escapeHtml(value: string) {

@@ -64,7 +64,7 @@ export function VendorProductsTable({
 
   async function bulkDelete() {
     if (!selectedIds.length) return;
-    if (!window.confirm("Selected Shopify Draft products will be sent to admin as delete requests. Other selected products will be archived locally.")) return;
+    if (!window.confirm("Selected live products will be sent to admin as delete requests. Other selected products will be archived locally.")) return;
     setLoading(true);
     const res = await fetch("/api/vendor/products/bulk-delete", {
       method: "POST",
@@ -120,7 +120,6 @@ export function VendorProductsTable({
           <tbody className="divide-y divide-line">
             {filteredProducts.map((product) => {
               const href = `/vendor/products/${product.id}`;
-              const canRequestChanges = ["approved", "shopify_draft"].includes(product.status);
               const pending = product.product_change_requests?.filter((request) => request.status === "pending") ?? [];
               return (
                 <tr key={product.id} onClick={() => router.push(href)} className="cursor-pointer hover:bg-slate-50">
@@ -130,7 +129,6 @@ export function VendorProductsTable({
                   <td className="px-4 py-3">
                     <Link href={href} onClick={(event) => event.stopPropagation()} className="font-medium text-ink hover:underline">{product.title}</Link>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {canRequestChanges && !pending.length && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">Change requests available</span>}
                       {pending.some((request) => request.request_type === "edit") && <StatusBadge status="update_pending" />}
                       {pending.some((request) => request.request_type === "delete") && <StatusBadge status="delete_pending" />}
                     </div>
@@ -138,7 +136,7 @@ export function VendorProductsTable({
                   <td className="px-4 py-3">{product.sku || "-"}</td>
                   <td className="px-4 py-3">{getDisplayPrice(product)}</td>
                   <td className="px-4 py-3">{product.stock}</td>
-                  <td className="px-4 py-3"><StatusBadge status={product.status} /></td>
+                  <td className="px-4 py-3"><StatusBadge status={product.status} label={product.status === "shopify_draft" ? "live" : undefined} /></td>
                   <td className="px-4 py-3">{formatDate(product.created_at)}</td>
                 </tr>
               );

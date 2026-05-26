@@ -6,7 +6,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const ctx = await requireVendorApi();
   if ("error" in ctx) return ctx.error;
   const { id } = await params;
-  const body = await request.json();
+  const body = await request.json().catch(() => ({}));
 
   const { data: existing } = await ctx.supabase.from("vendor_products").select("*").eq("id", id).eq("vendor_id", ctx.vendor.id).single();
   if (!existing) return NextResponse.json({ error: "Product not found" }, { status: 404 });
@@ -75,6 +75,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       );
       if (insertError) return NextResponse.json({ error: insertError.message }, { status: 400 });
     }
+  }
+
+  if (pending_images?.length) {
+    const { error: imageError } = await ctx.supabase.from("product_images").insert(
+      pending_images.map((image, index) => ({
+        product_id: id,
+        vendor_id: ctx.vendor.id,
+        url: image.url,
+        storage_path: image.storage_path,
+        alt_text: image.alt_text ?? "",
+        position: image.position ?? index
+      }))
+    );
+    if (imageError) return NextResponse.json({ error: imageError.message }, { status: 400 });
   }
 
   return NextResponse.json({ product });

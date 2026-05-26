@@ -1,0 +1,242 @@
+"use client";
+
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+
+type Language = "en" | "zh";
+
+const translations = {
+  en: {
+    "nav.dashboard": "Dashboard",
+    "nav.vendors": "Vendors",
+    "nav.newProducts": "New Products",
+    "nav.editRequests": "Edit Requests",
+    "nav.deleteRequests": "Delete Requests",
+    "nav.products": "Products",
+    "nav.orders": "Orders",
+    "nav.tracking": "Tracking",
+    "nav.settings": "Settings",
+    "nav.changePassword": "Change Password",
+    "nav.language": "Language",
+    "nav.english": "English",
+    "nav.chinese": "中文",
+    "product.basicInfo": "Basic Information",
+    "product.title": "Title",
+    "product.category": "Category",
+    "product.description": "Description",
+    "product.productOverview": "Product Overview",
+    "product.overviewHelp": "Add 3-6 bullet points describing the product, key features and suitable spaces.",
+    "product.detailsTable": "Details Table",
+    "product.label": "Label",
+    "product.value": "Value",
+    "product.required": "Required",
+    "product.addDetailRow": "Add detail row",
+    "product.pricingInventory": "Pricing & Inventory",
+    "product.variantPriceNotice": "This product uses variants. Please set price, compare-at price and stock for each variant below.",
+    "product.price": "Price",
+    "product.compareAtPrice": "Compare at price",
+    "product.sku": "SKU",
+    "product.stock": "Stock",
+    "product.images": "Images",
+    "product.variants": "Variants",
+    "product.saveDraft": "Save Draft",
+    "product.submitToAdmin": "Submit to Admin",
+    "product.submitUpdateRequest": "Submit Update Request",
+    "product.deleteProduct": "Delete product",
+    "image.upload": "Upload images",
+    "image.uploading": "Uploading...",
+    "image.uploadHelp": "Upload anytime. jpg, png or webp. Max 12 images, 8MB each.",
+    "image.referenceTitle": "Reference image example",
+    "image.referenceHelp": "Please upload a complete product image set. At minimum, include lifestyle or scene images and a dimensions image.",
+    "image.altText": "Alt text",
+    "image.remove": "Remove image",
+    "ai.generateCopy": "Generate with AI",
+    "ai.copyReady": "AI copy is ready.",
+    "ai.copyApplied": "AI copy applied.",
+    "ai.copyTitle": "AI Product Copy",
+    "ai.copyReview": "Review the suggestion before applying it to the form.",
+    "ai.generateAnother": "Generate another version",
+    "ai.applyOutput": "Apply AI Output",
+    "ai.cancel": "Cancel",
+    "ai.uploadImageFirst": "Upload at least one product image to enable AI copy generation.",
+    "ai.targetTitle": "AI focus product",
+    "ai.targetHelp": "If the image contains multiple products, tell AI which item this listing is for.",
+    "ai.targetType": "Product to focus on",
+    "ai.targetTypeAuto": "Auto detect",
+    "ai.targetTypeTable": "Table",
+    "ai.targetTypeChair": "Chair",
+    "ai.targetTypeSofa": "Sofa",
+    "ai.targetTypeBed": "Bed",
+    "ai.targetTypeCabinet": "Cabinet",
+    "ai.targetTypeLighting": "Lighting",
+    "ai.targetTypeDecor": "Decor",
+    "ai.targetTypeOther": "Other",
+    "ai.targetDescription": "Target description",
+    "ai.targetDescriptionPlaceholder": "e.g. white marble dining table with dark marble legs",
+    "ai.imageButton": "AI generate image",
+    "ai.imageUploadFirst": "Upload at least one product image before using AI image generation.",
+    "ai.imageTitle": "AI Image Generation",
+    "ai.imageHelp": "Choose a source image and the type of image you want to create.",
+    "ai.sourceImage": "Source image",
+    "ai.imageType": "Image type",
+    "ai.studio": "Studio image",
+    "ai.scene": "Scene image",
+    "ai.closeup": "Close-up image",
+    "ai.material": "Material image",
+    "ai.dimensions": "Dimensions image",
+    "ai.studioDesc": "Clean studio catalogue image",
+    "ai.sceneDesc": "Lifestyle room scene",
+    "ai.closeupDesc": "Close-up product detail",
+    "ai.materialDesc": "Material and texture detail",
+    "ai.dimensionsDesc": "Image with measurement labels",
+    "ai.dimensionsRequired": "Dimensions required",
+    "ai.length": "Length",
+    "ai.width": "Width",
+    "ai.height": "Height",
+    "ai.generatingNotice": "Image generation may take a few minutes. Please keep this window open while the image is being created.",
+    "ai.generateImage": "Generate image",
+    "ai.generateAnotherImage": "Generate another",
+    "ai.previewTitle": "Generated preview",
+    "ai.previewHelp": "This preview is temporary. It will only use storage after you save or submit the product.",
+    "ai.useImage": "Use image",
+    "ai.generating": "Generating...",
+    "ai.imageGenerated": "AI image generated.",
+    "ai.imageAdded": "AI image added to the product.",
+    "common.cancel": "Cancel"
+  },
+  zh: {
+    "nav.dashboard": "概览",
+    "nav.vendors": "商家",
+    "nav.newProducts": "新产品",
+    "nav.editRequests": "修改申请",
+    "nav.deleteRequests": "删除申请",
+    "nav.products": "产品",
+    "nav.orders": "订单",
+    "nav.tracking": "物流",
+    "nav.settings": "设置",
+    "nav.changePassword": "修改密码",
+    "nav.language": "语言",
+    "nav.english": "English",
+    "nav.chinese": "中文",
+    "product.basicInfo": "基础信息",
+    "product.title": "标题",
+    "product.category": "分类",
+    "product.description": "产品描述",
+    "product.productOverview": "产品卖点",
+    "product.overviewHelp": "添加 3-6 条卖点，描述产品特点、核心功能和适合空间。",
+    "product.detailsTable": "产品参数表",
+    "product.label": "名称",
+    "product.value": "内容",
+    "product.required": "必填",
+    "product.addDetailRow": "添加参数行",
+    "product.pricingInventory": "价格和库存",
+    "product.variantPriceNotice": "此产品使用变体。请在下方为每个变体设置价格、划线价和库存。",
+    "product.price": "价格",
+    "product.compareAtPrice": "划线价",
+    "product.sku": "SKU",
+    "product.stock": "库存",
+    "product.images": "图片",
+    "product.variants": "变体",
+    "product.saveDraft": "保存草稿",
+    "product.submitToAdmin": "提交给管理员",
+    "product.submitUpdateRequest": "提交修改申请",
+    "product.deleteProduct": "删除产品",
+    "image.upload": "上传图片",
+    "image.uploading": "上传中...",
+    "image.uploadHelp": "可随时上传。支持 jpg、png、webp。最多 12 张，每张 8MB。",
+    "image.referenceTitle": "图片参考示例",
+    "image.referenceHelp": "请上传完整的产品图片。至少需要场景图和尺寸图。",
+    "image.altText": "图片说明",
+    "image.remove": "删除图片",
+    "ai.generateCopy": "AI 生成文案",
+    "ai.copyReady": "AI 文案已生成。",
+    "ai.copyApplied": "AI 文案已应用。",
+    "ai.copyTitle": "AI 产品文案",
+    "ai.copyReview": "请先预览建议内容，再应用到表单。",
+    "ai.generateAnother": "重新生成一版",
+    "ai.applyOutput": "应用 AI 文案",
+    "ai.cancel": "取消",
+    "ai.uploadImageFirst": "请先上传至少一张产品图片，才可以使用 AI 生成文案。",
+    "ai.targetTitle": "AI 识别目标产品",
+    "ai.targetHelp": "如果图片里有多个产品，请告诉 AI 这条产品主要卖哪一个。",
+    "ai.targetType": "重点识别产品",
+    "ai.targetTypeAuto": "自动识别",
+    "ai.targetTypeTable": "桌子",
+    "ai.targetTypeChair": "椅子",
+    "ai.targetTypeSofa": "沙发",
+    "ai.targetTypeBed": "床",
+    "ai.targetTypeCabinet": "柜子",
+    "ai.targetTypeLighting": "灯具",
+    "ai.targetTypeDecor": "装饰品",
+    "ai.targetTypeOther": "其他",
+    "ai.targetDescription": "目标产品描述",
+    "ai.targetDescriptionPlaceholder": "例如：白色大理石餐桌，深色大理石桌腿",
+    "ai.imageButton": "AI 生成图片",
+    "ai.imageUploadFirst": "请先上传至少一张产品图片，才可以使用 AI 生图。",
+    "ai.imageTitle": "AI 生成图片",
+    "ai.imageHelp": "请选择参考图和想生成的图片类型。",
+    "ai.sourceImage": "参考图",
+    "ai.imageType": "图片类型",
+    "ai.studio": "棚拍图",
+    "ai.scene": "场景图",
+    "ai.closeup": "近景图",
+    "ai.material": "材质图",
+    "ai.dimensions": "尺寸图",
+    "ai.studioDesc": "干净的商品棚拍图",
+    "ai.sceneDesc": "家居空间场景图",
+    "ai.closeupDesc": "产品局部近景图",
+    "ai.materialDesc": "材质和纹理细节图",
+    "ai.dimensionsDesc": "带尺寸标注的图片",
+    "ai.dimensionsRequired": "需要填写尺寸",
+    "ai.length": "长",
+    "ai.width": "宽",
+    "ai.height": "高",
+    "ai.generatingNotice": "图片生成可能需要几分钟。生成期间请保持此窗口打开。",
+    "ai.generateImage": "生成图片",
+    "ai.generateAnotherImage": "重新生成",
+    "ai.previewTitle": "生成预览",
+    "ai.previewHelp": "这张图目前只是临时预览，只有保存或提交产品后才会占用存储。",
+    "ai.useImage": "使用这张图",
+    "ai.generating": "生成中...",
+    "ai.imageGenerated": "AI 图片已生成。",
+    "ai.imageAdded": "AI 图片已加入产品。",
+    "common.cancel": "取消"
+  }
+} as const;
+
+type TranslationKey = keyof typeof translations.en;
+
+const LanguageContext = createContext<{
+  language: Language;
+  setLanguage: (language: Language) => void;
+  t: (key: TranslationKey) => string;
+}>({
+  language: "en",
+  setLanguage: () => {},
+  t: (key) => translations.en[key]
+});
+
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const [language, setLanguageState] = useState<Language>("en");
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("vendor-portal-language");
+    if (saved === "zh" || saved === "en") setLanguageState(saved);
+  }, []);
+
+  function setLanguage(nextLanguage: Language) {
+    setLanguageState(nextLanguage);
+    window.localStorage.setItem("vendor-portal-language", nextLanguage);
+  }
+
+  const value = useMemo(() => ({
+    language,
+    setLanguage,
+    t: (key: TranslationKey) => translations[language][key] ?? translations.en[key]
+  }), [language]);
+
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
+}
+
+export function useI18n() {
+  return useContext(LanguageContext);
+}

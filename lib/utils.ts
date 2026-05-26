@@ -5,9 +5,9 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(value?: number | string | null, currency = "GBP") {
+export function formatCurrency(value?: number | string | null, currency = "USD") {
   const amount = Number(value ?? 0);
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(amount);
+  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
 }
 
 export function formatDate(value?: string | null) {

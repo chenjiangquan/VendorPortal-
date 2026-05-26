@@ -5,17 +5,18 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Boxes, ClipboardCheck, Home, KeyRound, Package, Settings, Store, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 const adminItems = [
-  { href: "/admin", label: "Dashboard", icon: Home },
-  { href: "/admin/vendors", label: "Vendors", icon: Store },
-  { href: "/admin/products", label: "New Products", icon: Package },
-  { href: "/admin/products/edit-requests", label: "Edit Requests", icon: Package },
-  { href: "/admin/products/delete-requests", label: "Delete Requests", icon: Package },
-  { href: "/admin/orders", label: "Orders", icon: Boxes },
-  { href: "/admin/tracking", label: "Tracking", icon: Truck },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
-  { href: "/admin/change-password", label: "Change Password", icon: KeyRound }
+  { href: "/admin", labelKey: "nav.dashboard", icon: Home },
+  { href: "/admin/vendors", labelKey: "nav.vendors", icon: Store },
+  { href: "/admin/products", labelKey: "nav.newProducts", icon: Package },
+  { href: "/admin/products/edit-requests", labelKey: "nav.editRequests", icon: Package },
+  { href: "/admin/products/delete-requests", labelKey: "nav.deleteRequests", icon: Package },
+  { href: "/admin/orders", labelKey: "nav.orders", icon: Boxes },
+  { href: "/admin/tracking", labelKey: "nav.tracking", icon: Truck },
+  { href: "/admin/settings", labelKey: "nav.settings", icon: Settings },
+  { href: "/admin/change-password", labelKey: "nav.changePassword", icon: KeyRound }
 ];
 
 type SidebarCounts = {
@@ -25,16 +26,17 @@ type SidebarCounts = {
 };
 
 const vendorItems = [
-  { href: "/vendor", label: "Dashboard", icon: Home },
-  { href: "/vendor/products", label: "Products", icon: Package },
-  { href: "/vendor/orders", label: "Orders", icon: Boxes },
-  { href: "/vendor/tracking", label: "Tracking", icon: ClipboardCheck },
-  { href: "/vendor/settings", label: "Settings", icon: Settings },
-  { href: "/vendor/change-password", label: "Change Password", icon: KeyRound }
+  { href: "/vendor", labelKey: "nav.dashboard", icon: Home },
+  { href: "/vendor/products", labelKey: "nav.products", icon: Package },
+  { href: "/vendor/orders", labelKey: "nav.orders", icon: Boxes },
+  { href: "/vendor/tracking", labelKey: "nav.tracking", icon: ClipboardCheck },
+  { href: "/vendor/settings", labelKey: "nav.settings", icon: Settings },
+  { href: "/vendor/change-password", labelKey: "nav.changePassword", icon: KeyRound }
 ];
 
 export function Sidebar({ role }: { role: "admin" | "vendor" }) {
   const pathname = usePathname();
+  const { language, setLanguage, t } = useI18n();
   const items = role === "admin" ? adminItems : vendorItems;
   const [counts, setCounts] = useState<SidebarCounts>({ newProducts: 0, editRequests: 0, deleteRequests: 0 });
 
@@ -86,7 +88,7 @@ export function Sidebar({ role }: { role: "admin" | "vendor" }) {
               className={cn("flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-600 hover:bg-panel hover:text-ink", active && "bg-ink text-white shadow-sm hover:bg-ink hover:text-white")}
             >
               <Icon className="h-4 w-4" />
-              <span>{item.label}</span>
+              <span>{t(item.labelKey as any)}</span>
               {count > 0 && (
                 <span className={cn("ml-auto rounded-full px-2 py-0.5 text-xs font-semibold", active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700")}>
                   {count > 99 ? "99+" : count}
@@ -96,6 +98,13 @@ export function Sidebar({ role }: { role: "admin" | "vendor" }) {
           );
         })}
       </nav>
+      <div className="absolute bottom-5 left-4 right-4 rounded-2xl border border-line bg-panel p-3">
+        <div className="text-xs font-semibold uppercase text-slate-500">{t("nav.language")}</div>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => setLanguage("en")} className={cn("rounded-xl px-3 py-2 text-sm font-semibold", language === "en" ? "bg-ink text-white" : "bg-white text-slate-700")}>{t("nav.english")}</button>
+          <button type="button" onClick={() => setLanguage("zh")} className={cn("rounded-xl px-3 py-2 text-sm font-semibold", language === "zh" ? "bg-ink text-white" : "bg-white text-slate-700")}>{t("nav.chinese")}</button>
+        </div>
+      </div>
     </aside>
   );
 }

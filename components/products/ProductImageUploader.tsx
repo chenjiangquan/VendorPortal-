@@ -4,15 +4,18 @@ import Image from "next/image";
 import { useState } from "react";
 import { GripVertical, X, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { AiImageGenerator } from "@/components/products/AiImageGenerator";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/lib/i18n";
 
 export type ProductImageDraft = {
   id: string;
   url: string;
-  storage_path: string;
+  storage_path?: string | null;
   alt_text?: string | null;
   position?: number;
   action?: "keep" | "add" | "update" | "remove";
+  is_temporary?: boolean;
 };
 
 export function ProductImageUploader({
@@ -22,7 +25,9 @@ export function ProductImageUploader({
   readOnly,
   staging = false,
   onChange,
-  onImagesChange
+  onImagesChange,
+  aiTitle,
+  aiCategory
 }: {
   productId?: string;
   vendorId: string;
@@ -31,10 +36,14 @@ export function ProductImageUploader({
   staging?: boolean;
   onChange?: (count: number) => void;
   onImagesChange?: (images: ProductImageDraft[]) => void;
+  aiTitle?: string;
+  aiCategory?: string;
 }) {
+  const { t } = useI18n();
   const [images, setImages] = useState<ProductImageDraft[]>(sortImages(existing));
   const [uploading, setUploading] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<ProductImageDraft | null>(null);
 
   function commit(next: ProductImageDraft[]) {
     const sorted = next.map((image, index) => ({ ...image, position: index }));
@@ -68,9 +77,10 @@ export function ProductImageUploader({
         toast.error(`${file.name} is larger than 8MB.`);
         continue;
       }
+      const safeFileName = createSafeStorageFileName(file);
       const path = productId
-        ? `${vendorId}/${productId}/${crypto.randomUUID()}-${file.name}`
-        : `${vendorId}/pending/${crypto.randomUUID()}-${file.name}`;
+        ? `${vendorId}/${productId}/${safeFileName}`
+        : `${vendorId}/pending/${safeFileName}`;
       const { error } = await supabase.storage.from("product-images").upload(path, file);
       if (error) {
         toast.error(error.message);
@@ -113,7 +123,7 @@ export function ProductImageUploader({
 
   async function remove(image: ProductImageDraft) {
     const supabase = createClient();
-    if (image.storage_path && (!staging || image.action === "add")) await supabase.storage.from("product-images").remove([image.storage_path]);
+    if (!image.is_temporary && image.storage_path && (!staging || image.action === "add")) await supabase.storage.from("product-images").remove([image.storage_path]);
     if (productId && !staging) {
       const res = await fetch(`/api/vendor/products/${productId}`, {
         method: "PATCH",
@@ -143,12 +153,34 @@ export function ProductImageUploader({
   return (
     <div className="md:col-span-2">
       {!readOnly && (
-        <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-panel p-6 text-center">
-          <Upload className="h-6 w-6 text-slate-500" />
-          <span className="mt-3 text-sm font-semibold text-ink">{uploading ? "Uploading..." : "Upload images"}</span>
-          <span className="mt-1 text-xs text-slate-500">Upload anytime. jpg, png or webp. Max 12 images, 8MB each.</span>
-          <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={uploading} onChange={(event) => upload(event.target.files)} />
-        </label>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-3">
+            <label className="flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-panel p-6 text-center">
+              <Upload className="h-6 w-6 text-slate-500" />
+              <span className="mt-3 text-sm font-semibold text-ink">{uploading ? t("image.uploading") : t("image.upload")}</span>
+              <span className="mt-1 text-xs text-slate-500">{t("image.uploadHelp")}</span>
+              <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={uploading} onChange={(event) => upload(event.target.files)} />
+            </label>
+            <AiImageGenerator
+              images={images}
+              productId={staging ? undefined : productId}
+              title={aiTitle}
+              category={aiCategory}
+              readOnly={readOnly}
+              onGenerated={(image) => commit([...images, image])}
+            />
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+            <div className="relative aspect-[2/3] bg-panel">
+              <Image src="/images/vendor-upload-example.jpg" alt="Product image reference example" fill className="object-contain" />
+            </div>
+            <div className="p-4">
+              <h3 className="text-sm font-semibold text-ink">{t("image.referenceTitle")}</h3>
+              <p className="mt-1 text-sm text-slate-500">{t("image.referenceHelp")}</p>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -166,19 +198,23 @@ export function ProductImageUploader({
               moveByDrag(image.id);
               setDraggingId(null);
             }}
+            onClick={() => setPreviewImage(image)}
             className={`group overflow-hidden rounded-2xl border border-line bg-white shadow-sm transition ${draggingId === image.id ? "scale-[0.98] opacity-60" : ""} ${readOnly ? "" : "cursor-grab active:cursor-grabbing"}`}
           >
             <div className="relative aspect-square bg-panel">
-              <Image src={image.url} alt={image.alt_text ?? "Product image"} fill className="object-cover" />
+              <Image src={image.url} alt={image.alt_text ?? "Product image"} fill className="object-cover" unoptimized={image.is_temporary} />
               <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-semibold shadow-sm">
                 {!readOnly && <GripVertical className="h-3 w-3 text-slate-400" />}#{index + 1}
               </span>
               {!readOnly && (
                 <button
                   type="button"
-                  onClick={() => remove(image)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    remove(image);
+                  }}
                   className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm transition hover:bg-red-50 hover:text-red-600"
-                  title="Remove image"
+                  title={t("image.remove")}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -186,17 +222,40 @@ export function ProductImageUploader({
             </div>
             <div className="p-3">
               <label className="block">
-                <span className="text-xs font-medium text-slate-500">Alt text</span>
-                <input value={image.alt_text ?? ""} disabled={readOnly} onChange={(event) => updateAlt(image.id, event.target.value)} className="focus-ring mt-1 w-full rounded-xl border border-line px-3 py-2 text-sm disabled:bg-panel" />
+                <span className="text-xs font-medium text-slate-500">{t("image.altText")}</span>
+                <input value={image.alt_text ?? ""} disabled={readOnly} onClick={(event) => event.stopPropagation()} onChange={(event) => updateAlt(image.id, event.target.value)} className="focus-ring mt-1 w-full rounded-xl border border-line px-3 py-2 text-sm disabled:bg-panel" />
               </label>
             </div>
           </div>
         ))}
       </div>
+      {previewImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" onClick={() => setPreviewImage(null)}>
+          <button type="button" onClick={() => setPreviewImage(null)} className="absolute right-5 top-5 rounded-full bg-white/10 p-2 text-white hover:bg-white/20">
+            <X className="h-6 w-6" />
+          </button>
+          <div className="relative max-h-[90vh] w-full max-w-5xl" onClick={(event) => event.stopPropagation()}>
+            <Image src={previewImage.url} alt={previewImage.alt_text ?? "Product image"} width={1400} height={1400} className="mx-auto max-h-[90vh] w-auto rounded-2xl object-contain" unoptimized={previewImage.is_temporary} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function sortImages(images: ProductImageDraft[]) {
   return [...images].sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0));
+}
+
+function createSafeStorageFileName(file: File) {
+  const extension = getImageExtension(file);
+  return `${crypto.randomUUID()}.${extension}`;
+}
+
+function getImageExtension(file: File) {
+  if (file.type === "image/jpeg") return "jpg";
+  if (file.type === "image/webp") return "webp";
+  if (file.type === "image/png") return "png";
+  const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return extension || "png";
 }
