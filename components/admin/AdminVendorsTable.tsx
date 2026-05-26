@@ -51,6 +51,7 @@ export function AdminVendorsTable({ rows }: { rows: VendorRow[] }) {
             <tr>
               <th className="px-4 py-3">Company</th>
               <th className="px-4 py-3">Email</th>
+              <th className="px-4 py-3">Shopify vendor</th>
               <th className="px-4 py-3">Commission</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3 text-right">Action</th>
@@ -66,6 +67,7 @@ export function AdminVendorsTable({ rows }: { rows: VendorRow[] }) {
                   {vendor.contact_name && <div className="mt-1 text-xs text-slate-500">{vendor.contact_name}</div>}
                 </td>
                 <td className="px-4 py-3">{vendor.email}</td>
+                <td className="px-4 py-3">{vendor.shopify_vendor_name || "-"}</td>
                 <td className="px-4 py-3">{vendor.commission_rate ?? 0}%</td>
                 <td className="px-4 py-3"><StatusBadge status={vendor.status} /></td>
                 <td className="px-4 py-3 text-right"><DeleteVendorButton vendorId={vendor.id} vendorName={vendor.company_name} /></td>
