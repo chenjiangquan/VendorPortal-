@@ -164,35 +164,41 @@ export function VariantEditor({
             </div>
           )}
 
-          <div className="overflow-hidden rounded-xl border border-line">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-panel text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-3 py-3">{t("product.variant")}</th>
-                  <th className="px-3 py-3">{t("product.price")}</th>
-                  <th className="px-3 py-3">
-                    <span className="inline-flex items-center gap-1">
-                      {t("product.compare")}
-                      <CompareAtPriceHelp />
-                    </span>
-                  </th>
-                  <th className="px-3 py-3">SKU</th>
-                  <th className="px-3 py-3">{t("product.stock")}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {variants.map((variant, index) => (
-                  <tr key={index}>
-                    <td className="px-3 py-3 font-medium">{[variant.option1_value, variant.option2_value, variant.option3_value].filter(Boolean).join(" / ")}</td>
-                    <td className="px-3 py-3"><MoneyCellInput value={variant.price ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { price: Number(value) }, onVariantsChange)} /></td>
-                    <td className="px-3 py-3"><MoneyCellInput value={variant.compare_at_price ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { compare_at_price: value ? Number(value) : null }, onVariantsChange)} /></td>
-                    <td className="px-3 py-3"><CellInput value={variant.sku ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { sku: value }, onVariantsChange)} /></td>
-                    <td className="px-3 py-3"><CellInput type="number" value={variant.stock ?? 0} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { stock: Number(value) }, onVariantsChange)} /></td>
+          {variants.length ? (
+            <div className="overflow-hidden rounded-xl border border-line">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-panel text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="px-3 py-3">{t("product.variant")}</th>
+                    <th className="px-3 py-3">{t("product.price")}</th>
+                    <th className="px-3 py-3">
+                      <span className="inline-flex items-center gap-1">
+                        {t("product.compare")}
+                        <CompareAtPriceHelp />
+                      </span>
+                    </th>
+                    <th className="px-3 py-3">SKU</th>
+                    <th className="px-3 py-3">{t("product.stock")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {variants.map((variant, index) => (
+                    <tr key={index}>
+                      <td className="px-3 py-3 font-medium">{[variant.option1_value, variant.option2_value, variant.option3_value].filter(Boolean).join(" / ")}</td>
+                      <td className="px-3 py-3"><MoneyCellInput value={variant.price ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { price: Number(value) }, onVariantsChange)} /></td>
+                      <td className="px-3 py-3"><MoneyCellInput value={variant.compare_at_price ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { compare_at_price: value ? Number(value) : null }, onVariantsChange)} /></td>
+                      <td className="px-3 py-3"><CellInput value={variant.sku ?? ""} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { sku: value }, onVariantsChange)} /></td>
+                      <td className="px-3 py-3"><CellInput type="number" value={variant.stock ?? 0} readOnly={readOnly} onChange={(value) => updateVariant(variants, index, { stock: Number(value) }, onVariantsChange)} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-line bg-panel p-4 text-sm text-slate-500">
+              {t("product.noVariantsYet")}
+            </div>
+          )}
         </>
       )}
     </div>

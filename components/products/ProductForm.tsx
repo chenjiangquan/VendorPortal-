@@ -294,7 +294,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
         {!readOnly && hasVariants && (
           <div className="md:col-span-2">
             <button formAction={(fd) => save(fd)} className="rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold shadow-sm">
-              Save variants
+              {t("product.saveVariants")}
             </button>
           </div>
         )}
