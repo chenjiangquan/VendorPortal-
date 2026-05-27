@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
-import { Lock, Plus, Save, Send, Trash2 } from "lucide-react";
+import { HelpCircle, Lock, Plus, Save, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ProductImageDraft, ProductImageUploader } from "@/components/products/ProductImageUploader";
 import { ProductOption, VariantEditor, VariantRow } from "@/components/products/VariantEditor";
@@ -72,6 +72,12 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
   }
 
   async function save(formData: FormData, submit = false) {
+    const compareAtPriceError = validateCompareAtPrice(hasVariants, mainPrice, mainCompareAtPrice, variants);
+    if (compareAtPriceError) {
+      toast.error(compareAtPriceError);
+      return;
+    }
+
     let imagesForPayload = productImages;
     let uploadedTemporaryPaths: string[] = [];
     try {
@@ -246,7 +252,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
       <Section title={t("product.pricingInventory")}>
         {hasVariants && <p className="md:col-span-2 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">{t("product.variantPriceNotice")}</p>}
         <MoneyField name="price" label={t("product.price")} requiredMark={!hasVariants} value={mainPrice} placeholder={hasVariants ? "Set prices in variants below" : undefined} onChange={(event) => setMainPrice(event.target.value)} required={!hasVariants} disabled={readOnly || hasVariants} />
-        <MoneyField name="compare_at_price" label={t("product.compareAtPrice")} value={mainCompareAtPrice} placeholder={hasVariants ? "Set compare-at prices in variants below" : undefined} onChange={(event) => setMainCompareAtPrice(event.target.value)} disabled={readOnly || hasVariants} />
+        <MoneyField name="compare_at_price" label={t("product.compareAtPrice")} help={<CompareAtPriceHelp />} value={mainCompareAtPrice} placeholder={hasVariants ? "Set compare-at prices in variants below" : undefined} onChange={(event) => setMainCompareAtPrice(event.target.value)} disabled={readOnly || hasVariants} />
         <Field name="sku" label={t("product.sku")} defaultValue={product?.sku} disabled={readOnly} />
         <Field name="stock" label={t("product.stock")} requiredMark={!hasVariants} type="number" value={mainStock} placeholder={hasVariants ? "Set stock in variants below" : undefined} onChange={(event) => setMainStock(event.target.value)} required={!hasVariants} disabled={readOnly || hasVariants} />
       </Section>
@@ -327,6 +333,23 @@ function validateForSubmit(formData: FormData, descriptionData: DescriptionData,
   const incompleteCustomRow = descriptionData.details.find((row) => !row.locked && row.label.trim() && !row.value.trim());
   if (incompleteCustomRow) return "Please complete or remove empty detail rows.";
   return null;
+}
+
+function validateCompareAtPrice(hasVariants: boolean, mainPrice: string, mainCompareAtPrice: string, variants: VariantRow[]) {
+  if (hasVariants) {
+    const invalidVariant = variants.find((variant) => {
+      const compareAtPrice = Number(variant.compare_at_price ?? 0);
+      if (!compareAtPrice) return false;
+      const price = Number(variant.price ?? 0);
+      return !price || compareAtPrice <= price;
+    });
+    return invalidVariant ? "Compare at price must be higher than price." : null;
+  }
+
+  const compareAtPrice = optionalNumber(mainCompareAtPrice);
+  if (compareAtPrice === null) return null;
+  const price = requiredNumber(mainPrice);
+  return !price || compareAtPrice <= price ? "Compare at price must be higher than price." : null;
 }
 
 function optionalNumber(value: FormDataEntryValue | string | null) {
@@ -474,15 +497,30 @@ function Field(props: React.InputHTMLAttributes<HTMLInputElement> & { label: str
   return <label><LabelText label={label} required={requiredMark} /><input {...inputProps} className="focus-ring mt-1 w-full rounded-xl border border-line bg-white px-4 py-2 text-sm shadow-sm disabled:bg-panel" /></label>;
 }
 
-function MoneyField(props: React.InputHTMLAttributes<HTMLInputElement> & { label: string; name: string; requiredMark?: boolean }) {
-  const { label, requiredMark, ...rest } = props;
+function MoneyField(props: React.InputHTMLAttributes<HTMLInputElement> & { label: string; name: string; requiredMark?: boolean; help?: React.ReactNode }) {
+  const { label, requiredMark, help, ...rest } = props;
   return (
     <label>
-      <LabelText label={label} required={requiredMark} />
+      <span className="flex items-center gap-1">
+        <LabelText label={label} required={requiredMark} />
+        {help}
+      </span>
       <div className="mt-1 flex overflow-hidden rounded-xl border border-line bg-white shadow-sm focus-within:ring-2 focus-within:ring-slate-900/10">
         <span className="flex items-center border-r border-line bg-panel px-3 text-sm font-semibold text-slate-500">$</span>
         <input {...rest} type="number" step={rest.step ?? "0.01"} className="w-full border-0 bg-white px-3 py-2 text-sm outline-none disabled:bg-panel" />
       </div>
     </label>
+  );
+}
+
+function CompareAtPriceHelp() {
+  const { t } = useI18n();
+  return (
+    <span className="group relative inline-flex">
+      <HelpCircle className="h-4 w-4 cursor-help text-slate-400" />
+      <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-72 -translate-x-1/2 rounded-xl border border-line bg-ink px-3 py-2 text-xs font-medium text-white shadow-xl group-hover:block group-focus-within:block">
+        {t("product.compareAtPriceHelp")}
+      </span>
+    </span>
   );
 }

@@ -62,6 +62,30 @@ export const productDraftSchema = z.object({
     alt_text: z.string().optional().nullable(),
     position: z.coerce.number().int().min(0).optional()
   })).optional()
+}).superRefine((data, ctx) => {
+  if (data.has_variants) {
+    data.variants?.forEach((variant, index) => {
+      if (variant.compare_at_price === null || variant.compare_at_price === undefined) return;
+      if (variant.price === null || variant.price === undefined || Number(variant.compare_at_price) <= Number(variant.price)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Compare at price must be higher than price.",
+          path: ["variants", index, "compare_at_price"]
+        });
+      }
+    });
+    return;
+  }
+
+  if (data.compare_at_price !== null && data.compare_at_price !== undefined) {
+    if (data.price === null || data.price === undefined || Number(data.compare_at_price) <= Number(data.price)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Compare at price must be higher than price.",
+        path: ["compare_at_price"]
+      });
+    }
+  }
 });
 
 export const productSubmitSchema = productDraftSchema.safeExtend({
