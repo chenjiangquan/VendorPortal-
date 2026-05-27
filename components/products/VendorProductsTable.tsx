@@ -42,6 +42,8 @@ export function VendorProductsTable({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [priceModalOpen, setPriceModalOpen] = useState(false);
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 300);
     return () => window.clearTimeout(timer);
@@ -57,6 +59,8 @@ export function VendorProductsTable({
   }, [products, requestFilter, debouncedSearch]);
   const selectableIds = filteredProducts.filter((product) => product.status !== "archived").map((product) => product.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id));
+  const selectedProducts = useMemo(() => products.filter((product) => selectedIds.includes(product.id)), [products, selectedIds]);
+  const priceRequestProducts = selectedProducts.filter((product) => ["approved", "shopify_draft"].includes(product.status) && !product.product_change_requests?.some((request) => request.request_type === "edit" && request.status === "pending"));
 
   function toggleSelected(productId: string, checked: boolean) {
     setSelectedIds((current) => checked ? Array.from(new Set([...current, productId])) : current.filter((id) => id !== productId));
@@ -83,14 +87,53 @@ export function VendorProductsTable({
     router.refresh();
   }
 
+  function openPriceModal() {
+    if (!priceRequestProducts.length) {
+      toast.error("Select approved or live products without pending update requests.");
+      return;
+    }
+    setPriceDrafts(Object.fromEntries(priceRequestProducts.map((product) => [product.id, ""])));
+    setPriceModalOpen(true);
+  }
+
+  async function submitBulkPriceUpdate() {
+    const items = priceRequestProducts.map((product) => ({ productId: product.id, price: Number(priceDrafts[product.id]) })).filter((item) => Number.isFinite(item.price) && item.price > 0);
+    if (items.length !== priceRequestProducts.length) {
+      toast.error("Please enter a valid new price for each product.");
+      return;
+    }
+    setLoading(true);
+    const res = await fetch("/api/vendor/product-requests/bulk-price-updates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items })
+    });
+    const json = await res.json().catch(() => ({}));
+    setLoading(false);
+    if (!res.ok) {
+      toast.error(json.error ?? "Price update requests failed.");
+      return;
+    }
+    toast.success(json.message ?? `${json.successCount ?? 0} price update requests submitted.`);
+    if (json.failedCount) toast.error(`${json.failedCount} products failed.`);
+    setPriceModalOpen(false);
+    setSelectedIds([]);
+    router.refresh();
+  }
+
   return (
     <div className="space-y-4">
       {selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white p-4 shadow-sm">
           <span className="text-sm font-semibold text-ink">{selectedIds.length} selected</span>
-          <button disabled={loading} onClick={bulkDelete} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">
-            {loading ? "Submitting..." : "Bulk delete"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button disabled={loading || !priceRequestProducts.length} onClick={openPriceModal} className="rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm disabled:opacity-50">
+              Bulk price update
+            </button>
+            <button disabled={loading} onClick={bulkDelete} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">
+              {loading ? "Submitting..." : "Bulk delete"}
+            </button>
+          </div>
         </div>
       )}
       <div className="rounded-2xl border border-line bg-white p-4 shadow-sm">
@@ -145,6 +188,61 @@ export function VendorProductsTable({
         </table>
         {!filteredProducts.length && <div className="p-8 text-center text-sm text-slate-500">No products found.</div>}
       </div>
+      {priceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-3xl rounded-2xl border border-line bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-ink">Bulk price update request</h3>
+                <p className="mt-1 text-sm text-slate-500">Enter the new price for each selected product. Admin approval is required before Shopify is updated.</p>
+              </div>
+              <button type="button" onClick={() => setPriceModalOpen(false)} className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-panel">Close</button>
+            </div>
+            <div className="mt-5 max-h-[55vh] overflow-y-auto rounded-xl border border-line">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-panel text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="px-3 py-3">Product</th>
+                    <th className="px-3 py-3">Current price</th>
+                    <th className="px-3 py-3">New price</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {priceRequestProducts.map((product) => (
+                    <tr key={product.id}>
+                      <td className="px-3 py-3">
+                        <div className="font-medium text-ink">{product.title}</div>
+                        {product.has_variants && <div className="mt-1 text-xs text-slate-500">Variant product: new price applies to all variants.</div>}
+                      </td>
+                      <td className="px-3 py-3 text-slate-600">{getDisplayPrice(product)}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex overflow-hidden rounded-lg border border-line bg-white focus-within:ring-2 focus-within:ring-slate-900/10">
+                          <span className="flex items-center border-r border-line bg-panel px-2 text-xs font-semibold text-slate-500">$</span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={priceDrafts[product.id] ?? ""}
+                            onChange={(event) => setPriceDrafts((current) => ({ ...current, [product.id]: event.target.value }))}
+                            className="w-full border-0 px-2 py-1 text-sm outline-none"
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setPriceModalOpen(false)} className="rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold shadow-sm">Cancel</button>
+              <button type="button" disabled={loading} onClick={submitBulkPriceUpdate} className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
+                {loading ? "Submitting..." : "Submit price requests"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
