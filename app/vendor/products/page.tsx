@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { VendorProductsHeader } from "@/components/products/VendorProductsHeader";
 import { VendorProductsTable } from "@/components/products/VendorProductsTable";
 import { requireVendor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -37,34 +37,8 @@ export default async function VendorProductsPage({ searchParams }: { searchParam
   }));
   return (
     <DashboardShell role="vendor" title="Products">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          {[
-            ["active", "All"],
-            ["draft", "Draft"],
-            ["submitted", "Submitted"],
-            ["approved", "Approved"],
-            ["rejected", "Rejected"],
-            ["shopify_draft", "Live"],
-            ["update_pending", "Update Pending"],
-            ["delete_pending", "Delete Pending"],
-            ["archived", "Archived"]
-          ].map(([value, label]) => (
-            <Link key={value} href={statusHref(value, sort, direction)} className={`rounded-xl px-3 py-2 text-sm font-semibold ${activeStatus === value ? "bg-ink text-white" : "border border-line bg-white text-slate-700"}`}>{label}</Link>
-          ))}
-        </div>
-        <Link href="/vendor/products/new" className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm">Add Product</Link>
-      </div>
+      <VendorProductsHeader activeStatus={activeStatus} sort={sort} direction={direction} />
       <VendorProductsTable products={products as any} status={activeStatus} sort={sort} direction={direction} requestFilter={activeStatus === "update_pending" ? "edit" : activeStatus === "delete_pending" ? "delete" : undefined} />
     </DashboardShell>
   );
-}
-
-function statusHref(status: string, sort?: string, direction?: string) {
-  const params = new URLSearchParams();
-  if (status !== "active") params.set("status", status);
-  if (sort) params.set("sort", sort);
-  if (direction) params.set("direction", direction);
-  const query = params.toString();
-  return query ? `/vendor/products?${query}` : "/vendor/products";
 }

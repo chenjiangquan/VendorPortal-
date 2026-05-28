@@ -958,11 +958,27 @@ export async function updateShopifyDraftProduct(productId: string) {
     const variantResult = await syncShopifyVariantsForProduct(product);
     warnings.push(...variantResult.warnings);
   } else {
+    const defaultVariant = await getDefaultShopifyVariant(product.shopify_product_gid);
+    if (defaultVariant?.id) {
+      const variantUpdate = await updateDefaultVariant(defaultVariant.id, product.shopify_product_gid, product);
+      if (variantUpdate.warning) warnings.push(variantUpdate.warning);
+    } else {
+      warnings.push("Default variant price could not be synced because Shopify did not return a default variant.");
+    }
     const inventoryResult = await syncProductInventory({ productId: product.id, shopifyProductId: product.shopify_product_gid, product });
     warnings.push(...inventoryResult.warnings);
   }
 
   return { updated: true, warning: dedupeWarnings(warnings).join(" ") || undefined, warnings: dedupeWarnings(warnings) };
+}
+
+async function getDefaultShopifyVariant(shopifyProductId: string) {
+  try {
+    const data = await shopifyGraphQL<{ product: { variants: { nodes: ShopifyInventoryVariant[] } } }>(GET_PRODUCT_VARIANTS, { id: shopifyProductId });
+    return data.product?.variants.nodes.find((variant) => variant.title === "Default Title") ?? data.product?.variants.nodes[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function updateProductWithCategoryFallback(input: Record<string, unknown>, warnings: string[]) {

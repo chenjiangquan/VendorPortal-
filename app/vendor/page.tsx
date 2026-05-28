@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { TranslatedText } from "@/components/ui/TranslatedText";
 import { StatCard } from "@/components/ui/StatCard";
 import { requireVendor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -16,13 +17,13 @@ export default async function VendorPage() {
   return (
     <DashboardShell role="vendor" title={vendor.company_name}>
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Products" value={products.count ?? 0} />
-        <StatCard label="Orders" value={orders.count ?? 0} />
-        <StatCard label="Tracking submissions" value={tracking.count ?? 0} />
+        <StatCard label={<TranslatedText translationKey="nav.products" fallback="Products" />} value={products.count ?? 0} />
+        <StatCard label={<TranslatedText translationKey="nav.orders" fallback="Orders" />} value={orders.count ?? 0} />
+        <StatCard label={<TranslatedText translationKey="dashboard.trackingSubmissions" fallback="Tracking submissions" />} value={tracking.count ?? 0} />
       </div>
       <div className="mt-6 flex flex-wrap gap-3">
-        <Link className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm" href="/vendor/products/new">Add Product</Link>
-        <Link className="rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold shadow-sm" href="/vendor/orders">View Orders</Link>
+        <Link className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm" href="/vendor/products/new"><TranslatedText translationKey="product.addProduct" fallback="Add Product" /></Link>
+        <Link className="rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold shadow-sm" href="/vendor/orders"><TranslatedText translationKey="dashboard.viewOrders" fallback="View Orders" /></Link>
       </div>
     </DashboardShell>
   );

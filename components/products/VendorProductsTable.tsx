@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { useI18n } from "@/lib/i18n";
 import { getDisplayPrice } from "@/lib/product-pricing";
 import { formatDate } from "@/lib/utils";
 
@@ -38,6 +39,7 @@ export function VendorProductsTable({
   direction?: string;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -68,7 +70,7 @@ export function VendorProductsTable({
 
   async function bulkDelete() {
     if (!selectedIds.length) return;
-    if (!window.confirm("Selected live products will be sent to admin as delete requests. Other selected products will be archived locally.")) return;
+    if (!window.confirm(t("product.bulkDeleteConfirm"))) return;
     setLoading(true);
     const res = await fetch("/api/vendor/products/bulk-delete", {
       method: "POST",
@@ -78,18 +80,18 @@ export function VendorProductsTable({
     const json = await res.json().catch(() => ({}));
     setLoading(false);
     if (!res.ok) {
-      toast.error(json.error ?? "Bulk delete failed.");
+      toast.error(json.error ?? t("product.bulkDeleteFailed"));
       return;
     }
-    toast.success(json.message ?? "Bulk delete submitted.");
-    if (json.failedCount) toast.error(`${json.failedCount} products failed.`);
+    toast.success(json.message ?? t("product.bulkDeleteSubmitted"));
+    if (json.failedCount) toast.error(t("product.productsFailed").replace("{count}", String(json.failedCount)));
     setSelectedIds([]);
     router.refresh();
   }
 
   function openPriceModal() {
     if (!priceRequestProducts.length) {
-      toast.error("Select approved or live products without pending update requests.");
+      toast.error(t("product.selectPriceUpdateProducts"));
       return;
     }
     setPriceDrafts(Object.fromEntries(priceRequestProducts.map((product) => [product.id, ""])));
@@ -99,7 +101,7 @@ export function VendorProductsTable({
   async function submitBulkPriceUpdate() {
     const items = priceRequestProducts.map((product) => ({ productId: product.id, price: Number(priceDrafts[product.id]) })).filter((item) => Number.isFinite(item.price) && item.price > 0);
     if (items.length !== priceRequestProducts.length) {
-      toast.error("Please enter a valid new price for each product.");
+      toast.error(t("product.validPriceRequired"));
       return;
     }
     setLoading(true);
@@ -111,11 +113,11 @@ export function VendorProductsTable({
     const json = await res.json().catch(() => ({}));
     setLoading(false);
     if (!res.ok) {
-      toast.error(json.error ?? "Price update requests failed.");
+      toast.error(json.error ?? t("product.priceRequestsFailed"));
       return;
     }
-    toast.success(json.message ?? `${json.successCount ?? 0} price update requests submitted.`);
-    if (json.failedCount) toast.error(`${json.failedCount} products failed.`);
+    toast.success(json.message ?? t("product.priceRequestsSubmitted").replace("{count}", String(json.successCount ?? 0)));
+    if (json.failedCount) toast.error(t("product.productsFailed").replace("{count}", String(json.failedCount)));
     setPriceModalOpen(false);
     setSelectedIds([]);
     router.refresh();
@@ -125,19 +127,19 @@ export function VendorProductsTable({
     <div className="space-y-4">
       {selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white p-4 shadow-sm">
-          <span className="text-sm font-semibold text-ink">{selectedIds.length} selected</span>
+          <span className="text-sm font-semibold text-ink">{t("common.selected").replace("{count}", String(selectedIds.length))}</span>
           <div className="flex flex-wrap gap-2">
             <button disabled={loading || !priceRequestProducts.length} onClick={openPriceModal} className="rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm disabled:opacity-50">
-              Bulk price update
+              {t("product.bulkPriceUpdate")}
             </button>
             <button disabled={loading} onClick={bulkDelete} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">
-              {loading ? "Submitting..." : "Bulk delete"}
+              {loading ? t("common.submitting") : t("product.bulkDelete")}
             </button>
           </div>
         </div>
       )}
       <div className="rounded-2xl border border-line bg-white p-4 shadow-sm">
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products by title, SKU or category..." className="focus-ring w-full rounded-xl border border-line px-4 py-2 text-sm shadow-sm" />
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("product.searchPlaceholder")} className="focus-ring w-full rounded-xl border border-line px-4 py-2 text-sm shadow-sm" />
       </div>
       <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
         <table className="w-full text-left text-sm">
@@ -152,12 +154,12 @@ export function VendorProductsTable({
                   onClick={(event) => event.stopPropagation()}
                 />
               </th>
-              <SortableHeader label="Title" field="title" status={status} sort={sort} direction={direction} />
+              <SortableHeader label={t("product.title")} field="title" status={status} sort={sort} direction={direction} />
               <th className="px-4 py-3">SKU</th>
-              <SortableHeader label="Price" field="price" status={status} sort={sort} direction={direction} />
-              <th className="px-4 py-3">Stock</th>
-              <th className="px-4 py-3">Status</th>
-              <SortableHeader label="Created" field="created_at" status={status} sort={sort} direction={direction} />
+              <SortableHeader label={t("product.price")} field="price" status={status} sort={sort} direction={direction} />
+              <th className="px-4 py-3">{t("product.stock")}</th>
+              <th className="px-4 py-3">{t("product.status")}</th>
+              <SortableHeader label={t("product.created")} field="created_at" status={status} sort={sort} direction={direction} />
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -179,32 +181,32 @@ export function VendorProductsTable({
                   <td className="px-4 py-3">{product.sku || "-"}</td>
                   <td className="px-4 py-3">{getDisplayPrice(product)}</td>
                   <td className="px-4 py-3">{product.stock}</td>
-                  <td className="px-4 py-3"><StatusBadge status={product.status} label={product.status === "shopify_draft" ? "live" : undefined} /></td>
+                  <td className="px-4 py-3"><StatusBadge status={product.status} label={product.status === "shopify_draft" ? t("product.statusLive") : undefined} /></td>
                   <td className="px-4 py-3">{formatDate(product.created_at)}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-        {!filteredProducts.length && <div className="p-8 text-center text-sm text-slate-500">No products found.</div>}
+        {!filteredProducts.length && <div className="p-8 text-center text-sm text-slate-500">{t("product.noProductsFound")}</div>}
       </div>
       {priceModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
           <div className="w-full max-w-3xl rounded-2xl border border-line bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-lg font-semibold text-ink">Bulk price update request</h3>
-                <p className="mt-1 text-sm text-slate-500">Enter the new price for each selected product. Admin approval is required before Shopify is updated.</p>
+                <h3 className="text-lg font-semibold text-ink">{t("product.bulkPriceTitle")}</h3>
+                <p className="mt-1 text-sm text-slate-500">{t("product.bulkPriceHelp")}</p>
               </div>
-              <button type="button" onClick={() => setPriceModalOpen(false)} className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-panel">Close</button>
+              <button type="button" onClick={() => setPriceModalOpen(false)} className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-panel">{t("common.close")}</button>
             </div>
             <div className="mt-5 max-h-[55vh] overflow-y-auto rounded-xl border border-line">
               <table className="w-full text-left text-sm">
                 <thead className="bg-panel text-xs uppercase text-slate-500">
                   <tr>
-                    <th className="px-3 py-3">Product</th>
-                    <th className="px-3 py-3">Current price</th>
-                    <th className="px-3 py-3">New price</th>
+                    <th className="px-3 py-3">{t("nav.products")}</th>
+                    <th className="px-3 py-3">{t("product.currentPrice")}</th>
+                    <th className="px-3 py-3">{t("product.newPrice")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -212,7 +214,7 @@ export function VendorProductsTable({
                     <tr key={product.id}>
                       <td className="px-3 py-3">
                         <div className="font-medium text-ink">{product.title}</div>
-                        {product.has_variants && <div className="mt-1 text-xs text-slate-500">Variant product: new price applies to all variants.</div>}
+                        {product.has_variants && <div className="mt-1 text-xs text-slate-500">{t("product.variantBulkPriceHelp")}</div>}
                       </td>
                       <td className="px-3 py-3 text-slate-600">{getDisplayPrice(product)}</td>
                       <td className="px-3 py-3">
@@ -235,9 +237,9 @@ export function VendorProductsTable({
               </table>
             </div>
             <div className="mt-5 flex justify-end gap-3">
-              <button type="button" onClick={() => setPriceModalOpen(false)} className="rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold shadow-sm">Cancel</button>
+              <button type="button" onClick={() => setPriceModalOpen(false)} className="rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold shadow-sm">{t("common.cancel")}</button>
               <button type="button" disabled={loading} onClick={submitBulkPriceUpdate} className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
-                {loading ? "Submitting..." : "Submit price requests"}
+                {loading ? t("common.submitting") : t("product.submitPriceRequests")}
               </button>
             </div>
           </div>
