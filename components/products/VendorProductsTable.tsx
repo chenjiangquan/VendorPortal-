@@ -63,6 +63,7 @@ export function VendorProductsTable({
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id));
   const selectedProducts = useMemo(() => products.filter((product) => selectedIds.includes(product.id)), [products, selectedIds]);
   const priceRequestProducts = selectedProducts.filter((product) => ["approved", "shopify_draft"].includes(product.status) && !product.product_change_requests?.some((request) => request.request_type === "edit" && request.status === "pending"));
+  const submitProducts = selectedProducts.filter((product) => ["draft", "rejected"].includes(product.status));
 
   function toggleSelected(productId: string, checked: boolean) {
     setSelectedIds((current) => checked ? Array.from(new Set([...current, productId])) : current.filter((id) => id !== productId));
@@ -84,6 +85,30 @@ export function VendorProductsTable({
       return;
     }
     toast.success(json.message ?? t("product.bulkDeleteSubmitted"));
+    if (json.failedCount) toast.error(t("product.productsFailed").replace("{count}", String(json.failedCount)));
+    setSelectedIds([]);
+    router.refresh();
+  }
+
+  async function bulkSubmit() {
+    if (!submitProducts.length) {
+      toast.error(t("product.selectSubmitProducts"));
+      return;
+    }
+    setLoading(true);
+    const res = await fetch("/api/vendor/products/bulk-submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productIds: submitProducts.map((product) => product.id) })
+    });
+    const json = await res.json().catch(() => ({}));
+    setLoading(false);
+    if (!res.ok) {
+      console.error(json.details ?? json.error);
+      toast.error(json.error ?? t("product.bulkSubmitFailed"));
+      return;
+    }
+    toast.success(json.message ?? t("product.bulkSubmitSubmitted").replace("{count}", String(json.successCount ?? 0)));
     if (json.failedCount) toast.error(t("product.productsFailed").replace("{count}", String(json.failedCount)));
     setSelectedIds([]);
     router.refresh();
@@ -129,6 +154,9 @@ export function VendorProductsTable({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white p-4 shadow-sm">
           <span className="text-sm font-semibold text-ink">{t("common.selected").replace("{count}", String(selectedIds.length))}</span>
           <div className="flex flex-wrap gap-2">
+            <button disabled={loading || !submitProducts.length} onClick={bulkSubmit} className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
+              {loading ? t("common.submitting") : t("product.bulkSubmit")}
+            </button>
             <button disabled={loading || !priceRequestProducts.length} onClick={openPriceModal} className="rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm disabled:opacity-50">
               {t("product.bulkPriceUpdate")}
             </button>

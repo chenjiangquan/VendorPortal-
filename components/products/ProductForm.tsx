@@ -128,6 +128,27 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
       }
     }
 
+    if (submit && mode !== "create") {
+      const submitRes = await fetch(`/api/vendor/products/${product.id}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const submitJson = await readApiJson(submitRes);
+      if (!submitRes.ok) {
+        console.error(submitJson.details ?? submitJson.error);
+        await cleanupUploadedTemporaryImages(uploadedTemporaryPaths);
+        setProductImages(productImages);
+        setImageCount(productImages.length);
+        toast.error(submitJson.error ?? "Could not submit product.");
+        return;
+      }
+      toast.success("Product submitted to admin.");
+      router.push(`/vendor/products/${product.id}`);
+      router.refresh();
+      return;
+    }
+
     const res = await fetch(endpoint, { method: mode === "create" ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const json = await readApiJson(res);
     if (!res.ok) {
