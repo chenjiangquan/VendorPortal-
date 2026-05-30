@@ -131,6 +131,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
     const res = await fetch(endpoint, { method: mode === "create" ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const json = await readApiJson(res);
     if (!res.ok) {
+      console.error(json.details ?? json.error);
       await cleanupUploadedTemporaryImages(uploadedTemporaryPaths);
       setProductImages(productImages);
       setImageCount(productImages.length);

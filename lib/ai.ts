@@ -173,24 +173,24 @@ export async function generateVendorProductImage(input: {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
 
-  const sourceResponse = await fetch(input.sourceImage.url);
-  if (!sourceResponse.ok) throw new Error("Could not read source product image.");
-
-  const contentType = sourceResponse.headers.get("content-type") ?? "image/png";
-  const bytes = Buffer.from(await sourceResponse.arrayBuffer());
-  const sourceFile = await toFile(bytes, `source.${extensionFromContentType(contentType)}`, { type: contentType });
+  const sourceFile = await prepareSourceImageFile(input.sourceImage.url);
 
   const prompt = buildVendorImagePrompt(input);
   const openai = new OpenAI({ apiKey });
-  const response = await openai.images.edit({
-    model: "gpt-image-1",
-    image: sourceFile,
-    prompt,
-    size: "1024x1024",
-    quality: "medium",
-    output_format: "png",
-    input_fidelity: "high"
-  });
+  let response;
+  try {
+    response = await openai.images.edit({
+      model: "gpt-image-1",
+      image: sourceFile,
+      prompt,
+      size: "1024x1024",
+      quality: "medium",
+      output_format: "png",
+      input_fidelity: "high"
+    });
+  } catch (error) {
+    throw new Error(friendlyOpenAIImageError(error));
+  }
 
   const b64 = response.data?.[0]?.b64_json;
   if (!b64) throw new Error("AI image generation did not return an image.");
@@ -203,6 +203,22 @@ export async function generateVendorProductImage(input: {
     action: "add" as const,
     is_temporary: true
   };
+}
+
+async function prepareSourceImageFile(url: string) {
+  const sourceResponse = await fetch(url);
+  if (!sourceResponse.ok) throw new Error("Could not read source product image. Please re-upload the image and try again.");
+
+  const bytes = Buffer.from(await sourceResponse.arrayBuffer());
+  if (!bytes.length) throw new Error("The selected source image is empty. Please choose another image.");
+  if (bytes.length > 20 * 1024 * 1024) throw new Error("The selected source image is too large for AI image generation. Please upload an image under 20MB.");
+
+  const detected = detectSupportedImage(bytes, sourceResponse.headers.get("content-type"));
+  if (!detected) {
+    throw new Error("This image cannot be used for AI image generation. Please upload a standard JPG, PNG or WebP image and try again.");
+  }
+
+  return toFile(bytes, `source.${detected.extension}`, { type: detected.mimeType });
 }
 
 function buildVendorImagePrompt(input: {
@@ -252,8 +268,32 @@ function generatedImageAltText(input: { mode: VendorImageMode; title?: string | 
   return `${input.title ?? "Product"} ${label[input.mode]}`.trim();
 }
 
-function extensionFromContentType(contentType: string) {
-  if (contentType.includes("jpeg") || contentType.includes("jpg")) return "jpg";
-  if (contentType.includes("webp")) return "webp";
-  return "png";
+function detectSupportedImage(bytes: Buffer, contentType: string | null) {
+  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return { mimeType: "image/png", extension: "png" };
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return { mimeType: "image/jpeg", extension: "jpg" };
+  }
+  if (bytes.length >= 12 && bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP") {
+    return { mimeType: "image/webp", extension: "webp" };
+  }
+
+  const type = contentType?.split(";")[0]?.trim().toLowerCase();
+  if (type === "image/png") return { mimeType: "image/png", extension: "png" };
+  if (type === "image/jpeg" || type === "image/jpg") return { mimeType: "image/jpeg", extension: "jpg" };
+  if (type === "image/webp") return { mimeType: "image/webp", extension: "webp" };
+  return null;
+}
+
+function friendlyOpenAIImageError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const lower = message.toLowerCase();
+  if (lower.includes("invalid image") || lower.includes("image file") || lower.includes("image mode") || lower.includes("unsupported image")) {
+    return "This image cannot be used for AI image generation. Please re-upload a standard JPG, PNG or WebP image, then try again.";
+  }
+  if (lower.includes("too large") || lower.includes("maximum")) {
+    return "The selected image is too large for AI image generation. Please upload a smaller image and try again.";
+  }
+  return "AI image generation failed. Please try another source image.";
 }
