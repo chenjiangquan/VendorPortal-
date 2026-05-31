@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
+import { LiveChatButton } from "@/components/layout/LiveChatButton";
 import { LanguageProvider } from "@/lib/i18n";
 
 export function DashboardShell({ role, title, children }: { role: "admin" | "vendor"; title: string; children: React.ReactNode }) {
@@ -11,6 +12,7 @@ export function DashboardShell({ role, title, children }: { role: "admin" | "ven
           <Topbar title={title} role={role} />
           <main className="px-4 py-6 md:px-8">{children}</main>
         </div>
+        <LiveChatButton />
       </div>
     </LanguageProvider>
   );
