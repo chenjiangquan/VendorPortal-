@@ -1,7 +1,7 @@
 "use client";
 
 import { Sparkles, X } from "lucide-react";
-import { RefObject, useRef, useState } from "react";
+import { RefObject, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ProductImageDraft } from "@/components/products/ProductImageUploader";
 import { DescriptionData } from "@/lib/product-description";
@@ -40,19 +40,42 @@ export function AiProductCopyButton({
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<AiCopyResult | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const loadingRef = useRef(false);
+  const requestIdRef = useRef(0);
+  const instanceIdRef = useRef(createInstanceId());
   const canGenerate = images.length > 0 && !readOnly;
 
+  useEffect(() => {
+    function handleOtherCopyRequest(event: Event) {
+      const detail = (event as CustomEvent<{ instanceId?: string }>).detail;
+      if (detail?.instanceId && detail.instanceId !== instanceIdRef.current) closeModal();
+    }
+
+    window.addEventListener("vendor-ai-copy:start", handleOtherCopyRequest);
+    return () => {
+      window.removeEventListener("vendor-ai-copy:start", handleOtherCopyRequest);
+      requestIdRef.current += 1;
+      abortRef.current?.abort();
+      abortRef.current = null;
+      loadingRef.current = false;
+    };
+  }, []);
+
   async function generateCopy() {
-    if (loading) return;
+    if (loadingRef.current) return;
     if (!canGenerate) {
       toast.error(t("ai.uploadImageFirst"));
       return;
     }
 
     const categoryInput = formRef.current?.elements.namedItem("category") as HTMLInputElement | null;
+    window.dispatchEvent(new CustomEvent("vendor-ai-copy:start", { detail: { instanceId: instanceIdRef.current } }));
     abortRef.current?.abort();
     const controller = new AbortController();
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     abortRef.current = controller;
+    loadingRef.current = true;
     setResult(null);
     setOpen(true);
     setLoading(true);
@@ -77,7 +100,7 @@ export function AiProductCopyButton({
         })
       });
       const json = await res.json().catch(() => ({}));
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || requestIdRef.current !== requestId) return;
       if (!res.ok) {
         toast.error(json.error ?? "AI product copy generation failed.");
         return;
@@ -86,11 +109,12 @@ export function AiProductCopyButton({
       setResult(json);
       toast.success(t("ai.copyReady"));
     } catch (error) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || requestIdRef.current !== requestId) return;
       toast.error(error instanceof Error ? error.message : "AI product copy generation failed.");
     } finally {
-      if (abortRef.current === controller) {
+      if (abortRef.current === controller && requestIdRef.current === requestId) {
         abortRef.current = null;
+        loadingRef.current = false;
         setLoading(false);
       }
     }
@@ -98,6 +122,10 @@ export function AiProductCopyButton({
 
   function applyResult() {
     if (!result) return;
+    requestIdRef.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    loadingRef.current = false;
     onApply({
       title: target === "overview" ? undefined : result.title,
       overviewText: target === "title" ? undefined : result.overview?.map((item) => `• ${item.replace(/^[-*•]\s*/, "").trim()}`).join("\n")
@@ -108,8 +136,10 @@ export function AiProductCopyButton({
   }
 
   function closeModal() {
+    requestIdRef.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
+    loadingRef.current = false;
     setLoading(false);
     setResult(null);
     setOpen(false);
@@ -182,4 +212,9 @@ export function AiProductCopyButton({
       )}
     </>
   );
+}
+
+function createInstanceId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `ai-copy-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
