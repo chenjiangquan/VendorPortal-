@@ -81,13 +81,14 @@ export async function generateVendorProductCopy(input: {
   if (!input.images.length) throw new Error("Please upload at least one product image before using AI.");
 
   const openai = new OpenAI({ apiKey });
+  const imagesForCopy = input.images.slice(0, 2);
   const response = await openai.responses.create({
     model: "gpt-4.1-mini",
     input: [
       {
         role: "system",
         content:
-          "You write concise furniture ecommerce copy for a vendor product upload form. Analyse the product images and any provided structured details. Return only one valid JSON object. Do not use markdown, code fences, prose, comments, or trailing commas. Do not invent dimensions, materials, warranties, delivery promises, real brand names, or unsupported claims. If uncertain, keep wording general and visual-observation based. Use clear modern ecommerce language."
+          "Write concise furniture ecommerce copy from the images and details. Return only valid JSON. Do not use markdown or HTML. Do not invent dimensions, materials, warranties, delivery, discounts, brand names, or unsupported claims."
       },
       {
         role: "user",
@@ -95,42 +96,24 @@ export async function generateVendorProductCopy(input: {
           {
             type: "input_text",
             text: JSON.stringify({
-              current_title: input.title ?? "",
-              category: input.category ?? "",
-              copy_target: input.copy_target ?? "both",
-              target_product_type: input.target_product_type ?? "",
-              target_product_description: input.target_product_description ?? "",
-              current_overview: input.overview ?? "",
-              details: input.details ?? [],
-              required_shape: {
-                title: input.copy_target === "overview" ? "omit or empty string" : "string, ecommerce-ready product title with an original product/collection name, colour/material and product type",
-                overview: input.copy_target === "title" ? "omit or empty array" : ["3-6 short Amazon-style bullet point strings, each under 24 words"]
+              task: input.copy_target ?? "both",
+              output: {
+                title: input.copy_target === "overview" ? "empty string" : "original collection-style product name + key colour/material + product type",
+                overview: input.copy_target === "title" ? [] : "3-6 short bullet strings, no bullet symbols, under 24 words each"
               },
-              title_style_examples_do_not_copy: [
-                "Ophelia Taupe Boucle Dining Chair",
-                "Greenwich Light Taupe Boucle Dining Chair",
-                "Laurel Wave Taupe Boucle Set of 2 Dining Chairs",
-                "Fulbourn Taupe Boucle Dining Chair with Natural Wood Frame"
-              ],
-              rules: [
-                "Create a tasteful original product name or collection name, then add the most useful colour/material and product type.",
-                "If copy_target is title, only generate title and leave overview empty.",
-                "If copy_target is overview, only generate overview and leave title empty.",
-                "If target_product_type or target_product_description is provided, focus only on that product in the images.",
-                "Ignore other products, chairs, tables, vases, decor, artwork, lighting, windows and room styling unless they are the stated target product.",
-                "Do not use real brand names or copy the examples exactly.",
-                "Avoid generic titles like 'Mid-Century Brown Upholstered Dining Chair'.",
-                "If current_title exists, do not repeat it exactly; improve it.",
-                "Title should be specific but not exaggerated.",
-                "Overview should be Amazon-style benefits/features bullets and describe visible product type, style, likely use, and provided details only.",
-                "Overview strings should not include bullet symbols; the UI will add bullets.",
-                "Do not mention dimensions unless supplied in details.",
-                "Do not mention warranty, shipping speed, discounts, or guarantees.",
-                "Do not output HTML."
-              ]
+              product_context: {
+                current_title: input.title ?? "",
+                category: input.category ?? "",
+                target_product_type: input.target_product_type ?? "",
+                target_product_description: input.target_product_description ?? "",
+                current_overview: input.overview ?? "",
+                details: input.details ?? []
+              },
+              style: "Use names like Ophelia, Greenwich, Laurel, Fulbourn as inspiration only. Do not copy examples or use real brands.",
+              rules: "Focus on the target product if provided. Ignore surrounding decor/other furniture. Improve existing title without repeating it exactly. Keep claims visual or detail-based. Return JSON shape: {\"title\":\"\",\"overview\":[\"\"]}."
             })
           },
-          ...input.images.slice(0, 4).map((image) => ({
+          ...imagesForCopy.map((image) => ({
             type: "input_image" as const,
             image_url: image.url
           }))
