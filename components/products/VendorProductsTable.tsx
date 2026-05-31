@@ -46,6 +46,7 @@ export function VendorProductsTable({
   const [loading, setLoading] = useState(false);
   const [priceModalOpen, setPriceModalOpen] = useState(false);
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
+  const [bulkPriceValue, setBulkPriceValue] = useState("");
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 300);
     return () => window.clearTimeout(timer);
@@ -120,7 +121,13 @@ export function VendorProductsTable({
       return;
     }
     setPriceDrafts(Object.fromEntries(priceRequestProducts.map((product) => [product.id, ""])));
+    setBulkPriceValue("");
     setPriceModalOpen(true);
+  }
+
+  function applyBulkPriceToAll(value: string) {
+    setBulkPriceValue(value);
+    setPriceDrafts(Object.fromEntries(priceRequestProducts.map((product) => [product.id, value])));
   }
 
   async function submitBulkPriceUpdate() {
@@ -234,7 +241,23 @@ export function VendorProductsTable({
                   <tr>
                     <th className="px-3 py-3">{t("nav.products")}</th>
                     <th className="px-3 py-3">{t("product.currentPrice")}</th>
-                    <th className="px-3 py-3">{t("product.newPrice")}</th>
+                    <th className="px-3 py-3">
+                      <div className="space-y-2">
+                        <span>{t("product.newPrice")}</span>
+                        <div className="flex overflow-hidden rounded-lg border border-line bg-white normal-case focus-within:ring-2 focus-within:ring-slate-900/10">
+                          <span className="flex items-center border-r border-line bg-panel px-2 text-xs font-semibold text-slate-500">$</span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={bulkPriceValue}
+                            onChange={(event) => applyBulkPriceToAll(event.target.value)}
+                            className="w-full min-w-28 border-0 px-2 py-1 text-sm font-normal outline-none"
+                            placeholder={t("product.applySamePrice")}
+                          />
+                        </div>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
