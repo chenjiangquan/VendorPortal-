@@ -209,8 +209,8 @@ export function VendorProductsTable({
                   <td className="px-4 py-3">
                     <Link href={href} onClick={(event) => event.stopPropagation()} className="font-medium text-ink hover:underline">{product.title}</Link>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {pending.some((request) => request.request_type === "edit") && <StatusBadge status="update_pending" />}
-                      {pending.some((request) => request.request_type === "delete") && <StatusBadge status="delete_pending" />}
+                      {pending.some((request) => request.request_type === "edit") && <StatusBadge status="update_pending" label={t("product.filterUpdatePending")} />}
+                      {pending.some((request) => request.request_type === "delete") && <StatusBadge status="delete_pending" label={t("product.filterDeletePending")} />}
                     </div>
                   </td>
                   <td className="px-4 py-3">{product.sku || "-"}</td>
