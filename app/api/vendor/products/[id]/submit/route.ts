@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireVendorApi } from "@/lib/permissions";
 import { buildDescriptionHtml, normaliseDescriptionData } from "@/lib/product-description";
-import { productDraftSchema } from "@/lib/validators";
+import { productDraftPartialSchema } from "@/lib/validators";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -15,7 +15,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!["draft", "rejected"].includes(existing.status)) return NextResponse.json({ error: "Only draft or rejected products can be submitted." }, { status: 403 });
 
     if (Object.keys(body).length) {
-      const parsed = productDraftSchema.partial().safeParse(body);
+      const parsed = productDraftPartialSchema.safeParse(body);
       if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Product data is invalid." }, { status: 400 });
       const saveResult = await saveDraftSnapshot(ctx.supabase, parsed.data, id, ctx.vendor.id);
       if (saveResult.error) return NextResponse.json({ error: saveResult.error.message }, { status: 400 });

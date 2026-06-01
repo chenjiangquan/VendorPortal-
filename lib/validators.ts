@@ -16,7 +16,7 @@ export const vendorCreateSchema = z.object({
   notes: z.string().optional().nullable()
 });
 
-export const productDraftSchema = z.object({
+const productDraftBaseSchema = z.object({
   title: z.string().min(3),
   description: z.string().optional().nullable(),
   description_data: z.unknown().optional().nullable(),
@@ -62,9 +62,11 @@ export const productDraftSchema = z.object({
     alt_text: z.string().optional().nullable(),
     position: z.coerce.number().int().min(0).optional()
   })).optional()
-}).superRefine((data, ctx) => {
+});
+
+function validateProductDraftPrices(data: any, ctx: z.RefinementCtx) {
   if (data.has_variants) {
-    data.variants?.forEach((variant, index) => {
+    data.variants?.forEach((variant: any, index: number) => {
       if (variant.compare_at_price === null || variant.compare_at_price === undefined) return;
       if (variant.price === null || variant.price === undefined || Number(variant.compare_at_price) <= Number(variant.price)) {
         ctx.addIssue({
@@ -86,12 +88,15 @@ export const productDraftSchema = z.object({
       });
     }
   }
-});
+}
 
-export const productSubmitSchema = productDraftSchema.safeExtend({
+export const productDraftSchema = productDraftBaseSchema.superRefine(validateProductDraftPrices);
+export const productDraftPartialSchema = productDraftBaseSchema.partial().superRefine(validateProductDraftPrices);
+
+export const productSubmitSchema = productDraftBaseSchema.extend({
   description: z.string().min(10),
   image_count: z.coerce.number().min(1).max(12)
-});
+}).superRefine(validateProductDraftPrices);
 
 export const trackingSchema = z.object({
   vendor_order_id: z.string().uuid(),
