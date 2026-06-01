@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireVendorApi } from "@/lib/permissions";
 import { buildDescriptionHtml, normaliseDescriptionData } from "@/lib/product-description";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { productDraftSchema } from "@/lib/validators";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = await requireVendorApi();
     if ("error" in ctx) return ctx.error;
-    const adminSupabase = createAdminClient();
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
 
@@ -19,18 +17,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (Object.keys(body).length) {
       const parsed = productDraftSchema.partial().safeParse(body);
       if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Product data is invalid." }, { status: 400 });
-      const saveResult = await saveDraftSnapshot(adminSupabase, parsed.data, id, ctx.vendor.id);
+      const saveResult = await saveDraftSnapshot(ctx.supabase, parsed.data, id, ctx.vendor.id);
       if (saveResult.error) return NextResponse.json({ error: saveResult.error.message }, { status: 400 });
     }
 
-    const productResult = await adminSupabase.from("vendor_products").select("*, product_images(id), product_variants(*)").eq("id", id).eq("vendor_id", ctx.vendor.id).single();
+    const productResult = await ctx.supabase.from("vendor_products").select("*, product_images(id), product_variants(*)").eq("id", id).eq("vendor_id", ctx.vendor.id).single();
     if (productResult.error || !productResult.data) return NextResponse.json({ error: productResult.error?.message ?? "Product not found" }, { status: 404 });
     const product = productResult.data;
     const validationError = validateProductForSubmit(product, body);
     if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
     const descriptionHtml = buildDescriptionHtml(product.description_data);
-    const { data, error } = await adminSupabase
+    const { data, error } = await ctx.supabase
       .from("vendor_products")
       .update({ status: "submitted", submitted_at: new Date().toISOString(), rejection_reason: null, final_description: descriptionHtml, description: descriptionHtml })
       .eq("id", id)
@@ -38,11 +36,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .select()
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    await adminSupabase.from("activity_logs").insert({ user_id: ctx.profile.id, vendor_id: ctx.vendor.id, action: "product_submitted", entity_type: "vendor_products", entity_id: id });
+    await ctx.supabase.from("activity_logs").insert({ user_id: ctx.profile.id, vendor_id: ctx.vendor.id, action: "product_submitted", entity_type: "vendor_products", entity_id: id });
     return NextResponse.json({ product: data });
   } catch (error) {
     console.error("Vendor product submit failed", error);
-    return NextResponse.json({ error: "Could not submit product.", details: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message || "Could not submit product." }, { status: 500 });
   }
 }
 

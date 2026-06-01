@@ -144,7 +144,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
         await cleanupUploadedTemporaryImages(uploadedTemporaryPaths);
         setProductImages(productImages);
         setImageCount(productImages.length);
-        toast.error(submitJson.error ?? "Could not submit product.");
+        toast.error(formatApiError(submitJson, "Could not submit product."));
         return;
       }
       toast.success("Product submitted to admin.");
@@ -166,7 +166,8 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
     if (submit) {
       const { response: submitRes, json: submitJson } = await requestApiJson(`/api/vendor/products/${id}/submit`, { method: "POST" }, "Could not submit product. Please check your connection and try again.");
       if (!submitRes?.ok) {
-        toast.error(submitJson.error ?? "Could not submit product.");
+        console.error(submitJson.details ?? submitJson.error);
+        toast.error(formatApiError(submitJson, "Could not submit product."));
         return;
       }
       toast.success("Product submitted to admin.");
@@ -440,6 +441,13 @@ async function requestApiJson(input: RequestInfo | URL, init: RequestInit, fallb
       }
     };
   }
+}
+
+function formatApiError(json: any, fallbackError: string) {
+  const error = typeof json?.error === "string" && json.error.trim() ? json.error.trim() : fallbackError;
+  const details = typeof json?.details === "string" && json.details.trim() ? json.details.trim() : "";
+  if (!details || error.includes(details)) return error;
+  return `${error} ${details}`;
 }
 
 async function readApiJson(response: Response) {
