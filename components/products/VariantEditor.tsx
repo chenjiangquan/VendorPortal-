@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { GripVertical, HelpCircle, Plus, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -60,6 +61,9 @@ export function VariantEditor({
   onVariantsChange: (variants: VariantRow[]) => void;
 }) {
   const { t } = useI18n();
+  const [bulkPrice, setBulkPrice] = useState("");
+  const [bulkCompareAtPrice, setBulkCompareAtPrice] = useState("");
+  const [bulkStock, setBulkStock] = useState("");
 
   function applyOptionsChange(nextOptions: ProductOption[]) {
     onOptionsChange(nextOptions);
@@ -96,6 +100,10 @@ export function VariantEditor({
 
   function removeOptionValue(optionIndex: number, valueIndex: number) {
     updateOption(optionIndex, { values: options[optionIndex].values.filter((_, index) => index !== valueIndex) });
+  }
+
+  function applyBulkVariantPatch(patch: Partial<VariantRow>) {
+    onVariantsChange(variants.map((variant) => ({ ...variant, ...patch })));
   }
 
   return (
@@ -170,15 +178,46 @@ export function VariantEditor({
                 <thead className="bg-panel text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-3 py-3">{t("product.variant")}</th>
-                    <th className="px-3 py-3">{t("product.price")}</th>
                     <th className="px-3 py-3">
-                      <span className="inline-flex items-center gap-1">
-                        {t("product.compare")}
-                        <CompareAtPriceHelp />
-                      </span>
+                      <VariantHeaderBulkField
+                        label={t("product.price")}
+                        value={bulkPrice}
+                        placeholder={t("product.applyAllPrice")}
+                        readOnly={readOnly}
+                        money
+                        onChange={(value) => {
+                          setBulkPrice(value);
+                          applyBulkVariantPatch({ price: value.trim() ? Number(value) : null });
+                        }}
+                      />
+                    </th>
+                    <th className="px-3 py-3">
+                      <VariantHeaderBulkField
+                        label={t("product.compare")}
+                        help={<CompareAtPriceHelp />}
+                        value={bulkCompareAtPrice}
+                        placeholder={t("product.applyAllCompareAtPrice")}
+                        readOnly={readOnly}
+                        money
+                        onChange={(value) => {
+                          setBulkCompareAtPrice(value);
+                          applyBulkVariantPatch({ compare_at_price: value.trim() ? Number(value) : null });
+                        }}
+                      />
                     </th>
                     <th className="px-3 py-3">SKU</th>
-                    <th className="px-3 py-3">{t("product.stock")}</th>
+                    <th className="px-3 py-3">
+                      <VariantHeaderBulkField
+                        label={t("product.stock")}
+                        value={bulkStock}
+                        placeholder={t("product.applyAllStock")}
+                        readOnly={readOnly}
+                        onChange={(value) => {
+                          setBulkStock(value);
+                          applyBulkVariantPatch({ stock: value.trim() ? Number(value) : null });
+                        }}
+                      />
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -214,6 +253,47 @@ function MoneyCellInput({ value, onChange, readOnly }: { value: string | number;
     <div className="flex overflow-hidden rounded-lg border border-line bg-white focus-within:ring-2 focus-within:ring-slate-900/10">
       <span className="flex items-center border-r border-line bg-panel px-2 text-xs font-semibold text-slate-500">$</span>
       <input type="number" disabled={readOnly} value={value} onChange={(event) => onChange(event.target.value)} className="w-full border-0 px-2 py-1 text-sm outline-none disabled:bg-panel" />
+    </div>
+  );
+}
+
+function VariantHeaderBulkField({
+  label,
+  help,
+  value,
+  placeholder,
+  money,
+  readOnly,
+  onChange
+}: {
+  label: string;
+  help?: React.ReactNode;
+  value: string;
+  placeholder: string;
+  money?: boolean;
+  readOnly?: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {help}
+      </span>
+      {!readOnly && (
+        <div className="flex overflow-hidden rounded-lg border border-line bg-white focus-within:ring-2 focus-within:ring-slate-900/10">
+          {money && <span className="flex items-center border-r border-line bg-panel px-2 text-xs font-semibold text-slate-500">$</span>}
+          <input
+            type="number"
+            step={money ? "0.01" : "1"}
+            min="0"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={placeholder}
+            className="w-full min-w-28 border-0 bg-white px-2 py-1.5 text-xs font-medium normal-case text-ink outline-none placeholder:text-slate-400"
+          />
+        </div>
+      )}
     </div>
   );
 }
