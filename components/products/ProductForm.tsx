@@ -32,7 +32,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
   const endpoint = mode === "create" ? "/api/vendor/products" : `/api/vendor/products/${product.id}`;
   const isChangeRequest = mode === "change-request";
 
-  function buildPayload(formData: FormData, imagesForPayload = productImages) {
+  function buildPayload(formData: FormData, imagesForPayload = productImages, includeImageSnapshot = isChangeRequest) {
     const descriptionData: DescriptionData = {
       overview: normaliseOverviewLines(overviewText),
       details
@@ -40,34 +40,40 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
     const compareAtPrice = optionalNumber(mainCompareAtPrice);
     const mainProductPrice = hasVariants ? null : requiredNumber(mainPrice);
     const mainProductStock = hasVariants ? null : requiredNumber(mainStock);
+    const pendingImages = imagesForPayload.flatMap((image, index) => image.action === "add" ? [{
+      url: image.url,
+      storage_path: image.storage_path ?? "",
+      alt_text: image.alt_text ?? "",
+      position: index
+    }] : []);
+    const payload: Record<string, unknown> = {
+      ...Object.fromEntries(formData.entries()),
+      price: mainProductPrice,
+      compare_at_price: hasVariants ? null : compareAtPrice,
+      stock: mainProductStock,
+      tags: String(formData.get("tags") ?? "").split(",").map((tag) => tag.trim()).filter(Boolean),
+      description_data: descriptionData,
+      description: descriptionData.overview.join("\n"),
+      has_variants: hasVariants,
+      options: hasVariants ? options : [],
+      variants: hasVariants ? variants : [],
+      pending_images: pendingImages
+    };
+
+    if (includeImageSnapshot) {
+      payload.product_images = imagesForPayload.map((image, index) => ({
+        id: image.id,
+        url: image.url,
+        storage_path: image.storage_path ?? "",
+        alt_text: image.alt_text ?? "",
+        position: index,
+        action: image.action ?? "keep"
+      }));
+    }
+
     return {
       descriptionData,
-      payload: {
-        ...Object.fromEntries(formData.entries()),
-        price: mainProductPrice,
-        compare_at_price: hasVariants ? null : compareAtPrice,
-        stock: mainProductStock,
-        tags: String(formData.get("tags") ?? "").split(",").map((tag) => tag.trim()).filter(Boolean),
-        description_data: descriptionData,
-        description: descriptionData.overview.join("\n"),
-        has_variants: hasVariants,
-        options: hasVariants ? options : [],
-        variants: hasVariants ? variants : [],
-        product_images: imagesForPayload.map((image, index) => ({
-          id: image.id,
-          url: image.url,
-          storage_path: image.storage_path ?? "",
-          alt_text: image.alt_text ?? "",
-          position: index,
-          action: image.action ?? "keep"
-        })),
-        pending_images: imagesForPayload.flatMap((image, index) => image.action === "add" ? [{
-          url: image.url,
-          storage_path: image.storage_path ?? "",
-          alt_text: image.alt_text ?? "",
-          position: index
-        }] : [])
-      }
+      payload
     };
   }
 
@@ -95,7 +101,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
 
     const { descriptionData, payload } = buildPayload(formData, imagesForPayload);
     if (isChangeRequest) {
-      const res = await fetch("/api/vendor/product-requests", {
+      const { response: res, json } = await requestApiJson("/api/vendor/product-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -104,9 +110,8 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
           reason: null,
           proposed_data: payload
         })
-      });
-      const json = await readApiJson(res);
-      if (!res.ok) {
+      }, "Update request could not be submitted. Please check your connection and try again.");
+      if (!res?.ok) {
         console.error(json.details ?? json.error);
         await cleanupUploadedTemporaryImages(uploadedTemporaryPaths);
         setProductImages(productImages);
@@ -129,13 +134,12 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
     }
 
     if (submit && mode !== "create") {
-      const submitRes = await fetch(`/api/vendor/products/${product.id}/submit`, {
+      const { response: submitRes, json: submitJson } = await requestApiJson(`/api/vendor/products/${product.id}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
-      });
-      const submitJson = await readApiJson(submitRes);
-      if (!submitRes.ok) {
+      }, "Could not submit product. Please check your connection and try again.");
+      if (!submitRes?.ok) {
         console.error(submitJson.details ?? submitJson.error);
         await cleanupUploadedTemporaryImages(uploadedTemporaryPaths);
         setProductImages(productImages);
@@ -149,9 +153,8 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
       return;
     }
 
-    const res = await fetch(endpoint, { method: mode === "create" ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    const json = await readApiJson(res);
-    if (!res.ok) {
+    const { response: res, json } = await requestApiJson(endpoint, { method: mode === "create" ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }, "Could not save product. Please check your connection and try again.");
+    if (!res?.ok) {
       console.error(json.details ?? json.error);
       await cleanupUploadedTemporaryImages(uploadedTemporaryPaths);
       setProductImages(productImages);
@@ -161,9 +164,8 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
     }
     const id = json.product?.id ?? product?.id;
     if (submit) {
-      const submitRes = await fetch(`/api/vendor/products/${id}/submit`, { method: "POST" });
-      const submitJson = await readApiJson(submitRes);
-      if (!submitRes.ok) {
+      const { response: submitRes, json: submitJson } = await requestApiJson(`/api/vendor/products/${id}/submit`, { method: "POST" }, "Could not submit product. Please check your connection and try again.");
+      if (!submitRes?.ok) {
         toast.error(submitJson.error ?? "Could not submit product.");
         return;
       }
@@ -186,13 +188,12 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
       return;
     }
 
-    const res = await fetch("/api/vendor/products/bulk-delete", {
+    const { response: res, json } = await requestApiJson("/api/vendor/products/bulk-delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ productIds: [product.id] })
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    }, "Product could not be deleted. Please check your connection and try again.");
+    if (!res?.ok) {
       toast.error(json.error ?? "Product could not be deleted.");
       return;
     }
@@ -424,6 +425,21 @@ async function materializeTemporaryImages(images: ProductImageDraft[], vendorId:
 async function cleanupUploadedTemporaryImages(paths: string[]) {
   if (!paths.length) return;
   await createClient().storage.from("product-images").remove(paths);
+}
+
+async function requestApiJson(input: RequestInfo | URL, init: RequestInit, fallbackError: string): Promise<{ response: Response | null; json: any }> {
+  try {
+    const response = await fetch(input, init);
+    return { response, json: await readApiJson(response) };
+  } catch (error) {
+    return {
+      response: null,
+      json: {
+        error: fallbackError,
+        details: error instanceof Error ? error.message : String(error)
+      }
+    };
+  }
 }
 
 async function readApiJson(response: Response) {
