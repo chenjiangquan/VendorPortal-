@@ -4,7 +4,20 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
 
 const updateVendorSchema = z.object({
-  shopify_vendor_name: z.string().trim().max(120).optional().nullable()
+  company_name: z.string().trim().min(1).max(160).optional(),
+  contact_name: z.string().trim().max(120).optional().nullable(),
+  email: z.string().trim().email().max(160).optional(),
+  phone: z.string().trim().max(80).optional().nullable(),
+  website: z.string().trim().max(200).optional().nullable(),
+  country: z.string().trim().max(100).optional().nullable(),
+  city: z.string().trim().max(100).optional().nullable(),
+  address: z.string().trim().max(300).optional().nullable(),
+  postcode: z.string().trim().max(40).optional().nullable(),
+  business_type: z.string().trim().max(100).optional().nullable(),
+  shopify_vendor_name: z.string().trim().max(120).optional().nullable(),
+  commission_rate: z.coerce.number().min(0).max(100).optional(),
+  status: z.enum(["active", "suspended", "archived"]).optional(),
+  notes: z.string().trim().max(2000).optional().nullable()
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -18,16 +31,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const admin = createAdminClient();
-  const updates = {
-    shopify_vendor_name: parsed.data.shopify_vendor_name || null,
-    updated_at: new Date().toISOString()
-  };
+  const updates = Object.fromEntries(
+    Object.entries(parsed.data).map(([key, value]) => [key, value === "" ? null : value])
+  ) as Record<string, unknown>;
+  updates.updated_at = new Date().toISOString();
 
   const { data: vendor, error } = await admin
     .from("vendors")
     .update(updates)
     .eq("id", id)
-    .select("id,company_name,shopify_vendor_name")
+    .select("id,company_name,contact_name,email,shopify_vendor_name,status")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -35,10 +48,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   await admin.from("activity_logs").insert({
     user_id: ctx.profile.id,
     vendor_id: id,
-    action: "vendor_shopify_name_updated",
+    action: "vendor_updated",
     entity_type: "vendors",
     entity_id: id,
-    metadata: { shopify_vendor_name: vendor.shopify_vendor_name }
+    metadata: { fields: Object.keys(parsed.data), company_name: vendor.company_name }
   });
 
   return NextResponse.json({ vendor });

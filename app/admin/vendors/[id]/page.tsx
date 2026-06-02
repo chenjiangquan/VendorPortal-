@@ -1,6 +1,6 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { DeleteVendorButton } from "@/components/admin/DeleteVendorButton";
-import { VendorShopifyNameForm } from "@/components/admin/VendorShopifyNameForm";
+import { VendorEditForm } from "@/components/admin/VendorEditForm";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -30,12 +30,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
           <div><dt className="text-slate-500">Country</dt><dd>{vendor?.country}</dd></div>
         </dl>
       </div>
-      {vendor?.id && (
-        <VendorShopifyNameForm
-          vendorId={vendor.id}
-          initialShopifyVendorName={vendor.shopify_vendor_name}
-        />
-      )}
+      {vendor?.id && <VendorEditForm vendor={vendor} />}
     </DashboardShell>
   );
 }

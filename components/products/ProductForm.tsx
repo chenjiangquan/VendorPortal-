@@ -8,6 +8,7 @@ import { ProductImageDraft, ProductImageUploader } from "@/components/products/P
 import { ProductOption, VariantEditor, VariantRow } from "@/components/products/VariantEditor";
 import { CategorySelector } from "@/components/products/CategorySelector";
 import { AiProductCopyButton } from "@/components/products/AiProductCopyButton";
+import { translateClientError } from "@/lib/client-errors";
 import { DescriptionData, normaliseDescriptionData, normaliseOverviewLines } from "@/lib/product-description";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n";
@@ -80,7 +81,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
   async function save(formData: FormData, submit = false) {
     const compareAtPriceError = validateCompareAtPrice(hasVariants, mainPrice, mainCompareAtPrice, variants);
     if (compareAtPriceError) {
-      toast.error(compareAtPriceError);
+      toast.error(translateClientError(compareAtPriceError, t));
       return;
     }
 
@@ -95,7 +96,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
         setImageCount(imagesForPayload.length);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save AI generated images.");
+      toast.error(translateClientError(error instanceof Error ? error.message : "Could not save AI generated images.", t));
       return;
     }
 
@@ -128,7 +129,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
     if (submit) {
       const validationError = validateForSubmit(formData, descriptionData, imageCount, hasVariants, variants, mainPrice, mainStock);
       if (validationError) {
-        toast.error(validationError);
+        toast.error(translateClientError(validationError, t));
         return;
       }
     }
@@ -144,7 +145,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
         await cleanupUploadedTemporaryImages(uploadedTemporaryPaths);
         setProductImages(productImages);
         setImageCount(productImages.length);
-        toast.error(formatApiError(submitJson, "Could not submit product."));
+        toast.error(formatApiError(submitJson, "Could not submit product.", t));
         return;
       }
       toast.success("Product submitted to admin.");
@@ -159,7 +160,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
       await cleanupUploadedTemporaryImages(uploadedTemporaryPaths);
       setProductImages(productImages);
       setImageCount(productImages.length);
-      toast.error(json.error ?? "Could not save product.");
+      toast.error(translateClientError(json.error ?? "Could not save product.", t));
       return;
     }
     const id = json.product?.id ?? product?.id;
@@ -167,7 +168,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
       const { response: submitRes, json: submitJson } = await requestApiJson(`/api/vendor/products/${id}/submit`, { method: "POST" }, "Could not submit product. Please check your connection and try again.");
       if (!submitRes?.ok) {
         console.error(submitJson.details ?? submitJson.error);
-        toast.error(formatApiError(submitJson, "Could not submit product."));
+        toast.error(formatApiError(submitJson, "Could not submit product.", t));
         return;
       }
       toast.success("Product submitted to admin.");
@@ -443,11 +444,13 @@ async function requestApiJson(input: RequestInfo | URL, init: RequestInit, fallb
   }
 }
 
-function formatApiError(json: any, fallbackError: string) {
+function formatApiError(json: any, fallbackError: string, t: (key: any) => string) {
   const error = typeof json?.error === "string" && json.error.trim() ? json.error.trim() : fallbackError;
   const details = typeof json?.details === "string" && json.details.trim() ? json.details.trim() : "";
-  if (!details || error.includes(details)) return error;
-  return `${error} ${details}`;
+  const translatedError = translateClientError(error, t);
+  const translatedDetails = translateClientError(details, t);
+  if (!details || translatedError.includes(translatedDetails)) return translatedError;
+  return `${translatedError} ${translatedDetails}`;
 }
 
 async function readApiJson(response: Response) {
@@ -463,10 +466,19 @@ async function readApiJson(response: Response) {
 }
 
 async function dataUrlToBlob(dataUrl: string) {
-  if (!dataUrl.startsWith("data:image/")) throw new Error("AI image preview is invalid.");
-  const response = await fetch(dataUrl);
-  if (!response.ok) throw new Error("Could not prepare AI image for upload.");
-  return response.blob();
+  const match = dataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp));base64,(.+)$/);
+  if (!match) throw new Error("AI image preview is invalid.");
+  try {
+    const mimeType = match[1] === "image/jpg" ? "image/jpeg" : match[1];
+    const binary = window.atob(match[2]);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return new Blob([bytes], { type: mimeType });
+  } catch {
+    throw new Error("Could not prepare AI image for upload.");
+  }
 }
 
 function DetailsTable({ details, readOnly, onChange }: { details: DescriptionData["details"]; readOnly?: boolean; onChange: (details: DescriptionData["details"]) => void }) {
@@ -495,6 +507,7 @@ function DetailsTable({ details, readOnly, onChange }: { details: DescriptionDat
             <label>
               <span className="text-sm font-medium text-slate-700">{t("product.value")} {row.locked && <span className="text-red-500">*</span>}</span>
               <input value={row.value} disabled={readOnly} placeholder={detailValuePlaceholder(row)} title={detailValueTitle(row)} onChange={(event) => update(row.id, { value: event.target.value })} className="focus-ring mt-1 w-full rounded-xl border border-line bg-white px-4 py-2 text-sm shadow-sm disabled:bg-panel" />
+              {row.locked && <p className="mt-1 text-xs text-slate-500">{t("product.capitaliseValueHint")}</p>}
             </label>
             <div className="mt-6 flex items-center justify-center">
               {row.locked ? (

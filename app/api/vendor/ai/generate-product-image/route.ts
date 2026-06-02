@@ -9,6 +9,7 @@ const requestSchema = z.object({
   category: z.string().optional().nullable(),
   target_product_type: z.string().optional().nullable(),
   target_product_description: z.string().optional().nullable(),
+  custom_prompt: z.string().max(1000).optional().nullable(),
   mode: z.enum(["studio", "scene", "closeup", "material", "dimensions"]),
   source_image: z.object({
     url: z.string().refine((value) => value.startsWith("data:image/") || /^https?:\/\//.test(value), "Source image must be a valid image URL."),
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
       category: input.category,
       targetProductType: input.target_product_type,
       targetProductDescription: input.target_product_description,
+      customPrompt: input.custom_prompt,
       dimensions: input.dimensions ?? undefined
     });
     return NextResponse.json({ image });

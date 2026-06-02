@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Pencil } from "lucide-react";
 import { DeleteVendorButton } from "@/components/admin/DeleteVendorButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
@@ -70,7 +71,15 @@ export function AdminVendorsTable({ rows }: { rows: VendorRow[] }) {
                 <td className="px-4 py-3">{vendor.shopify_vendor_name || "-"}</td>
                 <td className="px-4 py-3">{vendor.commission_rate ?? 0}%</td>
                 <td className="px-4 py-3"><StatusBadge status={vendor.status} /></td>
-                <td className="px-4 py-3 text-right"><DeleteVendorButton vendorId={vendor.id} vendorName={vendor.company_name} /></td>
+                <td className="px-4 py-3">
+                  <div className="flex justify-end gap-2">
+                    <Link href={`/admin/vendors/${vendor.id}`} className="inline-flex items-center gap-1 rounded-xl border border-line bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-panel">
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </Link>
+                    <DeleteVendorButton vendorId={vendor.id} vendorName={vendor.company_name} />
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

@@ -151,6 +151,7 @@ export async function generateVendorProductImage(input: {
   category?: string | null;
   targetProductType?: string | null;
   targetProductDescription?: string | null;
+  customPrompt?: string | null;
   dimensions?: { length?: string | null; width?: string | null; height?: string | null };
 }) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -210,6 +211,7 @@ function buildVendorImagePrompt(input: {
   category?: string | null;
   targetProductType?: string | null;
   targetProductDescription?: string | null;
+  customPrompt?: string | null;
   dimensions?: { length?: string | null; width?: string | null; height?: string | null };
 }) {
   const productContext = [
@@ -223,8 +225,11 @@ function buildVendorImagePrompt(input: {
     input.targetProductType || input.targetProductDescription
       ? "If the image contains multiple products, focus only on the target product described above. Ignore other furniture, decor, artwork, lighting, plants and room accessories."
       : "If the image contains multiple products, use the main furniture product as the reference unless a target product is described.",
-    "Preserve the product shape, colour, material, proportions, silhouette, legs, arms, stitching and visible construction.",
-    "Do not redesign the product. Do not add logos, text overlays, labels, watermarks, fake sale badges or extra products.",
+    "Preserve the product shape, colour, material, exact physical proportions, silhouette, legs, arms, stitching and visible construction.",
+    "Do not squash, stretch, elongate, widen, narrow, compress or otherwise distort the product. Keep the original width-to-height-to-depth relationship and the relative scale of all parts exactly the same as the reference image.",
+    "If the product needs to fit the square output canvas, add more background space or use uniform scaling only. Never use non-uniform scaling or perspective warping to make it fit.",
+    "Do not redesign the product. Do not change the seat height, back height, arm height, leg thickness, cushion thickness, tabletop thickness or any other structural proportions.",
+    "Do not add logos, text overlays, labels, watermarks, fake sale badges or extra products.",
     "Create a realistic ecommerce image suitable for a furniture product page.",
     "Keep the product clearly visible and commercially polished."
   ].join("\n");
@@ -237,7 +242,15 @@ function buildVendorImagePrompt(input: {
     dimensions: `Create a clean product dimensions image on a light neutral background. Show the full product with clear measurement guide lines and readable labels. Use these exact dimensions: Length ${input.dimensions?.length}, Width ${input.dimensions?.width}, Height ${input.dimensions?.height}. Do not invent other measurements.`
   };
 
-  return [productContext, sharedRules, modePrompts[input.mode]].filter(Boolean).join("\n\n");
+  const merchantPrompt = input.customPrompt?.trim()
+    ? [
+        "Merchant additional direction:",
+        input.customPrompt.trim(),
+        "Follow this direction only when it does not conflict with preserving the exact product reference, exact product proportions, ecommerce realism, and the no text/logo/watermark rules."
+      ].join("\n")
+    : "";
+
+  return [productContext, sharedRules, modePrompts[input.mode], merchantPrompt].filter(Boolean).join("\n\n");
 }
 
 function generatedImageAltText(input: { mode: VendorImageMode; title?: string | null }) {

@@ -5,6 +5,7 @@ import { ImagePlus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ProductImageDraft } from "@/components/products/ProductImageUploader";
+import { translateClientError } from "@/lib/client-errors";
 import { useI18n } from "@/lib/i18n";
 
 type AiImageMode = "studio" | "scene" | "closeup" | "material" | "dimensions";
@@ -41,6 +42,7 @@ export function AiImageGenerator({
   const [height, setHeight] = useState("");
   const [targetProductType, setTargetProductType] = useState("");
   const [targetProductDescription, setTargetProductDescription] = useState("");
+  const [customPrompt, setCustomPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [previewImage, setPreviewImage] = useState<ProductImageDraft | null>(null);
   const canGenerate = images.length > 0 && !readOnly;
@@ -58,7 +60,7 @@ export function AiImageGenerator({
   async function generateImage() {
     if (!selectedSource) return;
     if (mode === "dimensions" && (!length.trim() || !width.trim() || !height.trim())) {
-      toast.error("Please enter length, width and height for dimensions images.");
+      toast.error(t("error.aiDimensionsRequired"));
       return;
     }
 
@@ -73,6 +75,7 @@ export function AiImageGenerator({
         category,
         target_product_type: targetProductType,
         target_product_description: targetProductDescription,
+        custom_prompt: customPrompt,
         mode,
         source_image: {
           url: selectedSource.url,
@@ -86,7 +89,7 @@ export function AiImageGenerator({
     setLoading(false);
 
     if (!res.ok) {
-      toast.error(json.error ?? "AI image generation failed.");
+      toast.error(translateClientError(json.error ?? "AI image generation failed.", t));
       return;
     }
 
@@ -208,6 +211,19 @@ export function AiImageGenerator({
                     ))}
                   </div>
                 </div>
+
+                <label className="block">
+                  <span className="text-sm font-semibold text-ink">{t("ai.customPrompt")}</span>
+                  <textarea
+                    value={customPrompt}
+                    disabled={loading}
+                    rows={3}
+                    onChange={(event) => setCustomPrompt(event.target.value)}
+                    placeholder={t("ai.customPromptPlaceholder")}
+                    className="focus-ring mt-2 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm shadow-sm disabled:bg-panel"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">{t("ai.customPromptHelp")}</p>
+                </label>
 
                 {mode === "dimensions" && (
                   <div className="rounded-xl border border-line bg-panel p-4">
