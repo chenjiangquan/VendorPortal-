@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireVendorApi } from "@/lib/permissions";
-import { buildDescriptionHtml, normaliseDescriptionData } from "@/lib/product-description";
+import { buildDescriptionHtml, normaliseDescriptionData, titleCaseRequiredDescriptionDetails, titleCaseText } from "@/lib/product-description";
 import { productDraftPartialSchema } from "@/lib/validators";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -27,10 +27,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const validationError = validateProductForSubmit(product, body);
     if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
-    const descriptionHtml = buildDescriptionHtml(product.description_data);
+    const submittedDescriptionData = titleCaseRequiredDescriptionDetails(normaliseDescriptionData(product.description_data));
+    const submittedTitle = titleCaseText(product.title);
+    const descriptionHtml = buildDescriptionHtml(submittedDescriptionData);
     const { data, error } = await ctx.supabase
       .from("vendor_products")
-      .update({ status: "submitted", submitted_at: new Date().toISOString(), rejection_reason: null, final_description: descriptionHtml, description: descriptionHtml })
+      .update({ title: submittedTitle, description_data: submittedDescriptionData, status: "submitted", submitted_at: new Date().toISOString(), rejection_reason: null, final_description: descriptionHtml, description: descriptionHtml })
       .eq("id", id)
       .eq("vendor_id", ctx.vendor.id)
       .select()

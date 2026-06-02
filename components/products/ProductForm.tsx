@@ -9,7 +9,7 @@ import { ProductOption, VariantEditor, VariantRow } from "@/components/products/
 import { CategorySelector } from "@/components/products/CategorySelector";
 import { AiProductCopyButton } from "@/components/products/AiProductCopyButton";
 import { translateClientError } from "@/lib/client-errors";
-import { DescriptionData, normaliseDescriptionData, normaliseOverviewLines } from "@/lib/product-description";
+import { DescriptionData, normaliseDescriptionData, normaliseOverviewLines, titleCaseRequiredDescriptionDetails, titleCaseText } from "@/lib/product-description";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n";
 
@@ -33,11 +33,13 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
   const endpoint = mode === "create" ? "/api/vendor/products" : `/api/vendor/products/${product.id}`;
   const isChangeRequest = mode === "change-request";
 
-  function buildPayload(formData: FormData, imagesForPayload = productImages, includeImageSnapshot = isChangeRequest) {
-    const descriptionData: DescriptionData = {
+  function buildPayload(formData: FormData, imagesForPayload = productImages, includeImageSnapshot = isChangeRequest, normaliseForSubmit = false) {
+    const rawDescriptionData: DescriptionData = {
       overview: normaliseOverviewLines(overviewText),
       details
     };
+    const descriptionData = normaliseForSubmit ? titleCaseRequiredDescriptionDetails(rawDescriptionData) : rawDescriptionData;
+    const normalisedTitle = normaliseForSubmit ? titleCaseText(title) : title;
     const compareAtPrice = optionalNumber(mainCompareAtPrice);
     const mainProductPrice = hasVariants ? null : requiredNumber(mainPrice);
     const mainProductStock = hasVariants ? null : requiredNumber(mainStock);
@@ -49,6 +51,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
     }] : []);
     const payload: Record<string, unknown> = {
       ...Object.fromEntries(formData.entries()),
+      title: normalisedTitle,
       price: mainProductPrice,
       compare_at_price: hasVariants ? null : compareAtPrice,
       stock: mainProductStock,
@@ -100,7 +103,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
       return;
     }
 
-    const { descriptionData, payload } = buildPayload(formData, imagesForPayload);
+    const { descriptionData, payload } = buildPayload(formData, imagesForPayload, isChangeRequest, submit || isChangeRequest);
     if (isChangeRequest) {
       const { response: res, json } = await requestApiJson("/api/vendor/product-requests", {
         method: "POST",
@@ -507,7 +510,6 @@ function DetailsTable({ details, readOnly, onChange }: { details: DescriptionDat
             <label>
               <span className="text-sm font-medium text-slate-700">{t("product.value")} {row.locked && <span className="text-red-500">*</span>}</span>
               <input value={row.value} disabled={readOnly} placeholder={detailValuePlaceholder(row)} title={detailValueTitle(row)} onChange={(event) => update(row.id, { value: event.target.value })} className="focus-ring mt-1 w-full rounded-xl border border-line bg-white px-4 py-2 text-sm shadow-sm disabled:bg-panel" />
-              {row.locked && <p className="mt-1 text-xs text-slate-500">{t("product.capitaliseValueHint")}</p>}
             </label>
             <div className="mt-6 flex items-center justify-center">
               {row.locked ? (

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireVendorApi } from "@/lib/permissions";
-import { buildDescriptionHtml, normaliseDescriptionData } from "@/lib/product-description";
+import { buildDescriptionHtml, normaliseDescriptionData, titleCaseRequiredDescriptionDetails, titleCaseText } from "@/lib/product-description";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
@@ -40,10 +40,12 @@ export async function POST(request: Request) {
           continue;
         }
 
-        const descriptionHtml = buildDescriptionHtml(product.description_data);
+        const submittedDescriptionData = titleCaseRequiredDescriptionDetails(normaliseDescriptionData(product.description_data));
+        const submittedTitle = titleCaseText(product.title);
+        const descriptionHtml = buildDescriptionHtml(submittedDescriptionData);
         const { error: updateError } = await adminSupabase
           .from("vendor_products")
-          .update({ status: "submitted", submitted_at: new Date().toISOString(), rejection_reason: null, final_description: descriptionHtml, description: descriptionHtml })
+          .update({ title: submittedTitle, description_data: submittedDescriptionData, status: "submitted", submitted_at: new Date().toISOString(), rejection_reason: null, final_description: descriptionHtml, description: descriptionHtml })
           .eq("id", product.id)
           .eq("vendor_id", ctx.vendor.id);
         if (updateError) throw updateError;

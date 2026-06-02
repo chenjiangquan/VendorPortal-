@@ -59,6 +59,28 @@ export function normaliseDescriptionData(value: unknown): DescriptionData {
   };
 }
 
+export function titleCaseText(value: string) {
+  return value
+    .trim()
+    .replace(/[A-Za-z][A-Za-z'’-]*/g, (word) => {
+      if (word.length > 1 && word === word.toUpperCase()) return word;
+      return `${word.charAt(0).toUpperCase()}${word.slice(1).toLowerCase()}`;
+    })
+    .replace(/\s+/g, " ");
+}
+
+export function titleCaseRequiredDescriptionDetails(descriptionData: DescriptionData) {
+  const requiredIds = new Set(requiredDetails.map((row) => row.id));
+  const requiredLabels = new Set(requiredDetails.map((row) => row.label));
+  return {
+    ...descriptionData,
+    details: descriptionData.details.map((row) => {
+      const isRequired = requiredIds.has(row.id) || requiredLabels.has(row.label);
+      return isRequired ? { ...row, value: titleCaseText(row.value) } : row;
+    })
+  };
+}
+
 export function buildDescriptionHtml(descriptionData?: unknown) {
   const data = normaliseDescriptionData(descriptionData);
   const overviewItems = data.overview.map((line) => `<li>${escapeHtml(line)}</li>`).join("");
