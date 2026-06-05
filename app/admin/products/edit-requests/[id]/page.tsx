@@ -39,7 +39,7 @@ export default async function AdminEditRequestDetailPage({ params }: { params: P
           </div>
           <div className="grid gap-5 md:grid-cols-2">
             <CompareCard title="Current product" product={product} description={currentDescription} />
-            <CompareCard title="Proposed changes" product={proposed} description={proposedDescription} />
+            <CompareCard title="Proposed changes" product={proposed} description={proposedDescription} compareTo={product} compareDescription={currentDescription} />
           </div>
           <ProductChangeDiffPanel diff={diff} />
         </section>
@@ -49,24 +49,68 @@ export default async function AdminEditRequestDetailPage({ params }: { params: P
   );
 }
 
-function CompareCard({ title, product, description }: { title: string; product: any; description: any }) {
+function CompareCard({
+  title,
+  product,
+  description,
+  compareTo,
+  compareDescription
+}: {
+  title: string;
+  product: any;
+  description: any;
+  compareTo?: any;
+  compareDescription?: any;
+}) {
+  const isChanged = (field: string, value: unknown) => compareTo ? formatComparable(compareTo?.[field]) !== formatComparable(value) : false;
+  const priceChanged = compareTo ? getDisplayPrice(compareTo) !== getDisplayPrice(product) : false;
+  const overviewChanged = compareDescription ? JSON.stringify(compareDescription.overview ?? []) !== JSON.stringify(description.overview ?? []) : false;
+
   return (
     <div className="rounded-2xl border border-line bg-white p-5 shadow-sm">
       <h3 className="font-semibold">{title}</h3>
       <dl className="mt-4 grid gap-3 text-sm">
-        <div><dt className="text-slate-500">Title</dt><dd>{product?.title ?? "-"}</dd></div>
-        <div><dt className="text-slate-500">SKU</dt><dd>{product?.sku ?? "-"}</dd></div>
-        <div><dt className="text-slate-500">Price</dt><dd>{getDisplayPrice(product)}</dd></div>
-        <div><dt className="text-slate-500">Stock</dt><dd>{product?.stock ?? "-"}</dd></div>
-        <div><dt className="text-slate-500">Category</dt><dd>{product?.category ?? "-"}</dd></div>
+        <div><dt className="text-slate-500">Title</dt><ChangedValue changed={isChanged("title", product?.title)}>{product?.title ?? "-"}</ChangedValue></div>
+        <div><dt className="text-slate-500">SKU</dt><ChangedValue changed={isChanged("sku", product?.sku)}>{product?.sku ?? "-"}</ChangedValue></div>
+        <div><dt className="text-slate-500">Price</dt><ChangedValue changed={priceChanged}>{getDisplayPrice(product)}</ChangedValue></div>
+        <div><dt className="text-slate-500">Stock</dt><ChangedValue changed={isChanged("stock", product?.stock)}>{product?.stock ?? "-"}</ChangedValue></div>
+        <div><dt className="text-slate-500">Category</dt><ChangedValue changed={isChanged("category", product?.category)}>{product?.category ?? "-"}</ChangedValue></div>
       </dl>
       <div className="mt-5">
         <h4 className="text-sm font-semibold text-slate-700">Overview</h4>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">{description.overview.map((line: string) => <li key={line}>{line}</li>)}</ul>
+        <ul className={`mt-2 list-disc space-y-1 rounded-xl pl-5 text-sm ${overviewChanged ? "bg-red-50 px-4 py-3 text-red-700 ring-1 ring-red-100" : "text-slate-600"}`}>
+          {description.overview.map((line: string) => <li key={line}>{line}</li>)}
+        </ul>
       </div>
       <div className="mt-5 overflow-hidden rounded-xl border border-line">
-        <table className="w-full text-left text-sm"><tbody className="divide-y divide-line">{description.details.filter((row: any) => row.label && row.value).map((row: any) => <tr key={row.label}><td className="px-3 py-2 font-medium">{row.label}</td><td className="px-3 py-2">{row.value}</td></tr>)}</tbody></table>
+        <table className="w-full text-left text-sm">
+          <tbody className="divide-y divide-line">
+            {description.details.filter((row: any) => row.label && row.value).map((row: any) => {
+              const changed = detailChanged(row, compareDescription);
+              return (
+                <tr key={row.label} className={changed ? "bg-red-50/70" : ""}>
+                  <td className="px-3 py-2 font-medium">{row.label}</td>
+                  <td className={`px-3 py-2 ${changed ? "font-semibold text-red-700" : ""}`}>{row.value}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
+}
+
+function ChangedValue({ changed, children }: { changed: boolean; children: React.ReactNode }) {
+  return <dd className={changed ? "inline-flex rounded-lg bg-red-50 px-2 py-1 font-semibold text-red-700 ring-1 ring-red-100" : ""}>{children}</dd>;
+}
+
+function formatComparable(value: unknown) {
+  return value === null || value === undefined || value === "" ? "-" : String(value);
+}
+
+function detailChanged(row: { id?: string; label?: string; value?: string }, compareDescription?: any) {
+  if (!compareDescription) return false;
+  const before = (compareDescription.details ?? []).find((item: any) => (item.id && item.id === row.id) || item.label === row.label);
+  return String(before?.value ?? "") !== String(row.value ?? "");
 }

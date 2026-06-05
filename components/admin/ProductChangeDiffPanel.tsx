@@ -28,10 +28,10 @@ export function ProductChangeDiffPanel({ diff }: { diff: ProductChangeDiff }) {
           </thead>
           <tbody className="divide-y divide-line">
             {fields.map((field) => (
-              <tr key={field.field} className={field.changed ? "bg-amber-50/40" : ""}>
+              <tr key={field.field} className={field.changed ? "bg-red-50/50" : ""}>
                 <td className="px-3 py-2 font-medium text-ink">{field.label}</td>
                 <td className="px-3 py-2 text-slate-600">{field.before}</td>
-                <td className="px-3 py-2 text-slate-900">{field.after}</td>
+                <td className={`px-3 py-2 ${field.changed ? "font-semibold text-red-700" : "text-slate-900"}`}>{field.after}</td>
               </tr>
             ))}
             {!fields.length && <tr><td colSpan={3} className="px-3 py-6 text-center text-slate-500">No field changes.</td></tr>}
@@ -62,10 +62,10 @@ function CollectionDiff({ title, rows }: { title: string; rows: ProductChangeDif
           </thead>
           <tbody className="divide-y divide-line">
             {rows.map((row, index) => (
-              <tr key={`${row.label}-${index}`} className="bg-amber-50/40 align-top">
+              <tr key={`${row.label}-${index}`} className="bg-red-50/50 align-top">
                 <td className="px-3 py-2 font-medium text-ink">{row.label}</td>
                 <td className="whitespace-pre-wrap px-3 py-2 text-slate-600">{row.before}</td>
-                <td className="whitespace-pre-wrap px-3 py-2 text-slate-900">{row.after}</td>
+                <td className="whitespace-pre-wrap px-3 py-2 font-semibold text-red-700">{row.after}</td>
               </tr>
             ))}
           </tbody>
