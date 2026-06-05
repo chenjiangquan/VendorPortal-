@@ -33,6 +33,17 @@ export function AdminProductsTable({ products }: { products: AdminProductRow[] }
   const [technicalError, setTechnicalError] = useState<unknown>(null);
   const selectableIds = useMemo(() => products.filter((product) => product.status === "submitted" && !product.shopify_product_gid).map((product) => product.id), [products]);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id));
+  const vendorTags = useMemo(() => {
+    const map = new Map<string, { name: string; count: number; selectableIds: string[] }>();
+    for (const product of products) {
+      const name = product.vendors?.company_name?.trim() || "Unknown vendor";
+      const entry = map.get(name) ?? { name, count: 0, selectableIds: [] };
+      entry.count += 1;
+      if (product.status === "submitted" && !product.shopify_product_gid) entry.selectableIds.push(product.id);
+      map.set(name, entry);
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [products]);
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 300);
     return () => window.clearTimeout(timer);
@@ -70,14 +81,47 @@ export function AdminProductsTable({ products }: { products: AdminProductRow[] }
     router.refresh();
   }
 
+  async function bulkReject() {
+    setLoading(true);
+    setTechnicalError(null);
+    const res = await fetch("/api/admin/products/bulk-reject", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productIds: selectedIds })
+    });
+    const json = await res.json().catch(() => ({}));
+    setLoading(false);
+
+    if (!res.ok) {
+      toast.error(json.error ?? "Bulk reject failed.");
+      if (json.details) setTechnicalError(json.details);
+      return;
+    }
+
+    toast.success(`${json.successCount ?? 0} products rejected. ${json.failedCount ?? 0} failed.`);
+    if (json.failedItems?.length) setTechnicalError(json.failedItems);
+    setSelectedIds([]);
+    router.refresh();
+  }
+
+  function selectVendorProducts(vendorName: string) {
+    const entry = vendorTags.find((tag) => tag.name === vendorName);
+    setSelectedIds(entry?.selectableIds ?? []);
+  }
+
   return (
     <div className="space-y-4">
       {selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white p-4 shadow-sm">
           <span className="text-sm font-semibold text-ink">{selectedIds.length} selected</span>
-          <button disabled={loading} onClick={bulkCreateDrafts} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
-            {loading ? "Creating..." : "Create Shopify Drafts"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button disabled={loading} onClick={bulkCreateDrafts} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
+              {loading ? "Creating..." : "Create Shopify Drafts"}
+            </button>
+            <button disabled={loading} onClick={bulkReject} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50">
+              {loading ? "Rejecting..." : "Reject selected"}
+            </button>
+          </div>
         </div>
       )}
       {technicalError ? (
@@ -88,6 +132,27 @@ export function AdminProductsTable({ products }: { products: AdminProductRow[] }
       ) : null}
       <div className="rounded-2xl border border-line bg-white p-4 shadow-sm">
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products by title, SKU, vendor or category..." className="focus-ring w-full rounded-xl border border-line px-4 py-2 text-sm shadow-sm" />
+        {vendorTags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {vendorTags.map((vendor) => {
+              const selectedForVendor = vendor.selectableIds.length > 0 && vendor.selectableIds.every((id) => selectedIds.includes(id));
+              return (
+                <button
+                  key={vendor.name}
+                  type="button"
+                  disabled={!vendor.selectableIds.length}
+                  onClick={() => selectVendorProducts(vendor.name)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                    selectedForVendor ? "border-ink bg-ink text-white" : "border-line bg-panel text-slate-700 hover:border-slate-300 hover:bg-white"
+                  }`}
+                  title={vendor.selectableIds.length ? `Select ${vendor.selectableIds.length} submitted products from ${vendor.name}` : "No selectable submitted products for this vendor"}
+                >
+                  {vendor.name} <span className={selectedForVendor ? "text-white/70" : "text-slate-500"}>{vendor.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
         <table className="w-full text-left text-sm">
