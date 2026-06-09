@@ -10,6 +10,7 @@ import { CategorySelector } from "@/components/products/CategorySelector";
 import { AiProductCopyButton } from "@/components/products/AiProductCopyButton";
 import { translateClientError } from "@/lib/client-errors";
 import { DescriptionData, normaliseDescriptionData, normaliseOverviewLines, titleCaseRequiredDescriptionDetails, titleCaseText } from "@/lib/product-description";
+import { inferProductType } from "@/lib/product-type";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n";
 
@@ -22,6 +23,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
   const [title, setTitle] = useState(product?.title ?? "");
   const [overviewText, setOverviewText] = useState(initialDescription.overview.join("\n"));
   const [details, setDetails] = useState(initialDescription.details);
+  const [category, setCategory] = useState(product?.category ?? "");
   const [imageCount, setImageCount] = useState(initialImages.length);
   const [productImages, setProductImages] = useState<ProductImageDraft[]>(initialImages);
   const [hasVariants, setHasVariants] = useState(Boolean(product?.has_variants));
@@ -32,6 +34,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
   const [variants, setVariants] = useState<VariantRow[]>(product?.product_variants ?? []);
   const endpoint = mode === "create" ? "/api/vendor/products" : `/api/vendor/products/${product.id}`;
   const isChangeRequest = mode === "change-request";
+  const productType = useMemo(() => inferProductType(title, category), [title, category]);
 
   function buildPayload(formData: FormData, imagesForPayload = productImages, includeImageSnapshot = isChangeRequest, normaliseForSubmit = false) {
     const rawDescriptionData: DescriptionData = {
@@ -52,6 +55,7 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
     const payload: Record<string, unknown> = {
       ...Object.fromEntries(formData.entries()),
       title: normalisedTitle,
+      product_type: productType || null,
       price: mainProductPrice,
       compare_at_price: hasVariants ? null : compareAtPrice,
       stock: mainProductStock,
@@ -240,7 +244,15 @@ export function ProductForm({ product, mode = "create", readOnly = false, vendor
             className="focus-ring w-full rounded-xl border border-line bg-white px-4 py-2 text-sm shadow-sm disabled:bg-panel"
           />
         </div>
-        <CategorySelector defaultCategory={product?.category} defaultCategoryId={product?.category_id} defaultShopifyCategoryId={product?.shopify_category_id} disabled={readOnly} />
+        <CategorySelector
+          defaultCategory={product?.category}
+          defaultCategoryId={product?.category_id}
+          defaultShopifyCategoryId={product?.shopify_category_id}
+          disabled={readOnly}
+          className=""
+          onChange={(selected) => setCategory(selected.category)}
+        />
+        <ProductTypeAutoField value={productType} />
       </Section>
 
       <Section title={t("product.description")}>
@@ -556,6 +568,23 @@ function Field(props: React.InputHTMLAttributes<HTMLInputElement> & { label: str
   const { label, requiredMark, ...rest } = props;
   const inputProps = "value" in rest ? rest : { ...rest, defaultValue: rest.defaultValue ?? "" };
   return <label><LabelText label={label} required={requiredMark} /><input {...inputProps} className="focus-ring mt-1 w-full rounded-xl border border-line bg-white px-4 py-2 text-sm shadow-sm disabled:bg-panel" /></label>;
+}
+
+function ProductTypeAutoField({ value }: { value: string }) {
+  const { t } = useI18n();
+  return (
+    <label>
+      <span className="text-sm font-medium text-slate-700">{t("product.productType")}</span>
+      <input type="hidden" name="product_type" value={value} />
+      <input
+        value={value}
+        readOnly
+        placeholder={t("product.productTypePlaceholder")}
+        className="mt-1 w-full rounded-xl border border-line bg-panel px-4 py-2 text-sm text-slate-700 shadow-sm"
+      />
+      <span className="mt-1 block text-xs text-slate-500">{t("product.productTypeHelp")}</span>
+    </label>
+  );
 }
 
 function MoneyField(props: React.InputHTMLAttributes<HTMLInputElement> & { label: string; name: string; requiredMark?: boolean; help?: React.ReactNode }) {

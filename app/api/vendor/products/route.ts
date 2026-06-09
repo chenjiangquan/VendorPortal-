@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireVendorApi } from "@/lib/permissions";
+import { inferProductType } from "@/lib/product-type";
 import { productDraftSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
@@ -9,6 +10,7 @@ export async function POST(request: Request) {
     const parsed = productDraftSchema.safeParse(await request.json().catch(() => ({})));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Product data is invalid." }, { status: 400 });
     const { variants, pending_images, ...productInput } = parsed.data;
+    productInput.product_type = productInput.product_type || inferProductType(productInput.title, productInput.category);
 
     const productMutation = await insertVendorProduct(ctx.supabase, { ...productInput, vendor_id: ctx.vendor.id, status: "draft" });
     if (productMutation.error) return NextResponse.json({ error: productMutation.error.message }, { status: 400 });

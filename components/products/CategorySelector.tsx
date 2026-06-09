@@ -9,12 +9,16 @@ export function CategorySelector({
   defaultCategory,
   defaultCategoryId,
   defaultShopifyCategoryId,
-  disabled
+  disabled,
+  className = "md:col-span-2",
+  onChange
 }: {
   defaultCategory?: string | null;
   defaultCategoryId?: string | null;
   defaultShopifyCategoryId?: string | null;
   disabled?: boolean;
+  className?: string;
+  onChange?: (category: { category: string; category_id: string; shopify_category_id: string }) => void;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -36,21 +40,23 @@ export function CategorySelector({
       setPath([...path, category]);
       return;
     }
-    setSelected({
+    const nextSelected = {
       category: category.fullName,
       category_id: category.id,
       shopify_category_id: category.shopifyTaxonomyId ?? ""
-    });
+    };
+    setSelected(nextSelected);
+    onChange?.(nextSelected);
     setOpen(false);
     setQuery("");
   }
 
   return (
-    <div className="relative md:col-span-2">
+    <div className={`relative ${className}`}>
       <label>
         <span className="text-sm font-medium text-slate-700">{t("product.category")}</span>
         <button type="button" disabled={disabled} onClick={() => setOpen(!open)} className="mt-1 flex w-full items-center justify-between rounded-xl border border-line bg-white px-4 py-2 text-left text-sm shadow-sm disabled:bg-panel">
-          <span className={selected.category ? "text-ink" : "text-slate-400"}>{selected.category || "Select category"}</span>
+          <span className={selected.category ? "text-ink" : "text-slate-400"}>{selected.category || t("product.selectCategory")}</span>
           <ChevronRight className="h-4 w-4 text-slate-400" />
         </button>
       </label>

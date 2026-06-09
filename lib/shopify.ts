@@ -26,7 +26,7 @@ export async function shopifyGraphQL<T>(query: string, variables?: Record<string
   const connection = await getShopifyConnection();
   const domain = connection.shop;
   const token = connection.access_token;
-  const version = process.env.SHOPIFY_API_VERSION ?? "2026-01";
+  const version = process.env.SHOPIFY_API_VERSION ?? "2026-04";
 
   const res = await fetch(`https://${domain}/admin/api/${version}/graphql.json`, {
     method: "POST",
@@ -732,9 +732,15 @@ async function setInventoryQuantity(inventoryItemId: string, locationId: string,
     input: {
       name: "available",
       reason: "correction",
-      ignoreCompareQuantity: true,
       referenceDocumentUri: `vendor-portal://product/${productId}`,
-      quantities: [{ inventoryItemId, locationId, quantity: Math.max(0, Math.floor(Number(quantity || 0))) }]
+      quantities: [
+        {
+          inventoryItemId,
+          locationId,
+          quantity: Math.max(0, Math.floor(Number(quantity || 0))),
+          changeFromQuantity: null
+        }
+      ]
     }
   });
   if (data.inventorySetQuantities.userErrors.length) throw new Error(formatUserErrors(data.inventorySetQuantities.userErrors));

@@ -19,7 +19,7 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 SHOPIFY_STORE_DOMAIN=
-SHOPIFY_API_VERSION=2026-01
+SHOPIFY_API_VERSION=2026-04
 SHOPIFY_CLIENT_ID=
 SHOPIFY_CLIENT_SECRET=
 SHOPIFY_SCOPES=read_orders,read_products,write_products,read_inventory,write_inventory,read_locations
@@ -206,7 +206,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 SHOPIFY_STORE_DOMAIN=direct-source-home.myshopify.com
-SHOPIFY_API_VERSION=2026-01
+SHOPIFY_API_VERSION=2026-04
 SHOPIFY_CLIENT_ID=your_shopify_client_id
 SHOPIFY_CLIENT_SECRET=your_shopify_client_secret
 SHOPIFY_SCOPES=read_orders,read_products,write_products,read_inventory,write_inventory,read_locations

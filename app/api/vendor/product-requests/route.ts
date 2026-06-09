@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireVendorApi } from "@/lib/permissions";
+import { inferProductType } from "@/lib/product-type";
 
 export async function POST(request: Request) {
   const ctx = await requireVendorApi();
@@ -40,8 +41,13 @@ export async function POST(request: Request) {
   if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 });
   if (existing) return NextResponse.json({ error: `A pending ${requestType} request already exists for this product.` }, { status: 400 });
 
+  const incomingProposedData = body.proposed_data ?? {};
   const proposedData = requestType === "edit"
-    ? { ...(body.proposed_data ?? {}), product_images: body.proposed_data?.product_images ?? product.product_images ?? [] }
+    ? {
+      ...incomingProposedData,
+      product_type: incomingProposedData.product_type || inferProductType(incomingProposedData.title ?? product.title, incomingProposedData.category ?? product.category),
+      product_images: incomingProposedData.product_images ?? product.product_images ?? []
+    }
     : { snapshot: product };
 
   const { data, error } = await ctx.supabase

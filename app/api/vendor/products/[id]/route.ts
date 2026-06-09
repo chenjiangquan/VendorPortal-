@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireVendorApi } from "@/lib/permissions";
+import { inferProductType } from "@/lib/product-type";
 import { productDraftPartialSchema } from "@/lib/validators";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -60,6 +61,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const parsed = productDraftPartialSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Product data is invalid." }, { status: 400 });
     const { variants, pending_images, ...productInput } = parsed.data;
+    productInput.product_type = productInput.product_type || inferProductType(productInput.title ?? existing.title, productInput.category ?? existing.category);
     const productMutation = await updateVendorProduct(ctx.supabase, productInput, id, ctx.vendor.id);
     if (productMutation.error) return NextResponse.json({ error: productMutation.error.message }, { status: 400 });
     const product = productMutation.data;

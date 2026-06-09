@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireVendorApi } from "@/lib/permissions";
 import { buildDescriptionHtml, normaliseDescriptionData, titleCaseRequiredDescriptionDetails, titleCaseText } from "@/lib/product-description";
+import { inferProductType } from "@/lib/product-type";
 import { productDraftPartialSchema } from "@/lib/validators";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -29,10 +30,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const submittedDescriptionData = titleCaseRequiredDescriptionDetails(normaliseDescriptionData(product.description_data));
     const submittedTitle = titleCaseText(product.title);
+    const submittedProductType = product.product_type || inferProductType(submittedTitle, product.category);
     const descriptionHtml = buildDescriptionHtml(submittedDescriptionData);
     const { data, error } = await ctx.supabase
       .from("vendor_products")
-      .update({ title: submittedTitle, description_data: submittedDescriptionData, status: "submitted", submitted_at: new Date().toISOString(), rejection_reason: null, final_description: descriptionHtml, description: descriptionHtml })
+      .update({ title: submittedTitle, product_type: submittedProductType || null, description_data: submittedDescriptionData, status: "submitted", submitted_at: new Date().toISOString(), rejection_reason: null, final_description: descriptionHtml, description: descriptionHtml })
       .eq("id", id)
       .eq("vendor_id", ctx.vendor.id)
       .select()
@@ -49,6 +51,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
 async function saveDraftSnapshot(supabase: any, data: Record<string, any>, productId: string, vendorId: string) {
   const { variants, pending_images, ...productInput } = data;
+  productInput.product_type = productInput.product_type || inferProductType(productInput.title, productInput.category);
   const productResult = await updateVendorProduct(supabase, productInput, productId, vendorId);
   if (productResult.error) return productResult;
 
