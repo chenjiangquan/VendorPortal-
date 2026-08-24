@@ -37,8 +37,10 @@ async function signInWithSupabaseRest(
   supabaseAnonKey: string,
   credentials: { email: string; password: string }
 ) {
+  const startedAt = Date.now();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  const supabaseHost = new URL(supabaseUrl).hostname;
 
   try {
     const response = await fetch(`${supabaseUrl.replace(/\/$/, "")}/auth/v1/token?grant_type=password`, {
@@ -54,6 +56,12 @@ async function signInWithSupabaseRest(
 
     const json = await response.json().catch(() => ({}));
     if (!response.ok) {
+      console.warn("Supabase login failed", {
+        supabaseHost,
+        status: response.status,
+        elapsedMs: Date.now() - startedAt
+      });
+
       return {
         ok: false as const,
         status: response.status === 400 ? 401 : response.status,
@@ -70,6 +78,12 @@ async function signInWithSupabaseRest(
     };
   } catch (error) {
     const isAbort = error instanceof Error && error.name === "AbortError";
+    console.warn("Supabase login request failed", {
+      supabaseHost,
+      timedOut: isAbort,
+      elapsedMs: Date.now() - startedAt
+    });
+
     return {
       ok: false as const,
       status: 504,

@@ -3,6 +3,10 @@
     "app/api/auth/login/route.ts": {
       "maxDuration": 15,
       "regions": ["lhr1"]
+    },
+    "app/api/health/supabase/route.ts": {
+      "maxDuration": 10,
+      "regions": ["lhr1"]
     }
   }
 }

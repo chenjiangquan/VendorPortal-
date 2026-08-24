@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   return (
@@ -24,23 +25,15 @@ function LoginForm() {
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    const credentials = {
+      email: String(formData.get("email")),
+      password: String(formData.get("password"))
+    };
     setLoading(true);
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 15000);
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        email: String(formData.get("email")),
-        password: String(formData.get("password"))
-      })
-    }).catch(() => null);
-    window.clearTimeout(timeout);
-    const json = await response?.json().catch(() => ({}));
+    const result = await signIn(credentials);
     setLoading(false);
-    if (!response?.ok) {
-      toast.error(json?.error ?? "Login failed. Please check your connection and try again.");
+    if (!result.ok) {
+      toast.error(result.error);
       return;
     }
     toast.success("Signed in.");
@@ -78,4 +71,71 @@ function LoginForm() {
       </form>
     </main>
   );
+}
+
+async function signIn(credentials: { email: string; password: string }) {
+  const serverResult = await signInWithServerRoute(credentials);
+  if (serverResult.ok) {
+    return serverResult;
+  }
+
+  if (!serverResult.shouldFallback) {
+    return serverResult;
+  }
+
+  const browserResult = await signInWithBrowserClient(credentials);
+  if (browserResult.ok) {
+    return browserResult;
+  }
+
+  return {
+    ok: false as const,
+    error: browserResult.error || serverResult.error || "Login failed. Please check your connection and try again."
+  };
+}
+
+async function signInWithServerRoute(credentials: { email: string; password: string }) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 10000);
+
+  try {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify(credentials)
+    });
+    const json = await response.json().catch(() => ({}));
+
+    if (response.ok) {
+      return { ok: true as const };
+    }
+
+    return {
+      ok: false as const,
+      shouldFallback: response.status === 504,
+      error: json?.error ?? "Login failed. Please check your connection and try again."
+    };
+  } catch (error) {
+    const isAbort = error instanceof Error && error.name === "AbortError";
+    return {
+      ok: false as const,
+      shouldFallback: true,
+      error: isAbort ? "Login request timed out. Trying another login route..." : "Login request failed. Trying another login route..."
+    };
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+async function signInWithBrowserClient(credentials: { email: string; password: string }) {
+  const supabase = createClient();
+  const { error } = await supabase.auth.signInWithPassword(credentials);
+  if (error) {
+    return {
+      ok: false as const,
+      error: error.message || "Could not sign in."
+    };
+  }
+  return { ok: true as const };
 }
