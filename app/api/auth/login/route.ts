@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export const runtime = "nodejs";
 export const maxDuration = 15;
+export const preferredRegion = "lhr1";
 
 const loginSchema = z.object({
   email: z.string().email(),
