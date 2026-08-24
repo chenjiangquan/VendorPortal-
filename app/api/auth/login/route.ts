@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 export const maxDuration = 15;
 export const preferredRegion = "lhr1";
 
@@ -97,7 +97,7 @@ async function signInWithSupabaseRest(
 function setSupabaseSessionCookies(response: NextResponse, supabaseUrl: string, session: unknown) {
   const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
   const cookieName = `sb-${projectRef}-auth-token`;
-  const cookieValue = `base64-${Buffer.from(JSON.stringify(session), "utf8").toString("base64url")}`;
+  const cookieValue = `base64-${base64UrlEncode(JSON.stringify(session))}`;
   const cookieOptions = {
     path: "/",
     sameSite: "lax" as const,
@@ -119,4 +119,15 @@ function setSupabaseSessionCookies(response: NextResponse, supabaseUrl: string, 
   chunks.forEach((chunk, index) => {
     response.cookies.set(`${cookieName}.${index}`, chunk, cookieOptions);
   });
+}
+
+function base64UrlEncode(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
+
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
