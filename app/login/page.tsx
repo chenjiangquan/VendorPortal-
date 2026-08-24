@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense } from "react";
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import type { FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -21,16 +21,22 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  async function login(formData: FormData) {
+  async function login(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
     setLoading(true);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         email: String(formData.get("email")),
         password: String(formData.get("password"))
       })
     }).catch(() => null);
+    window.clearTimeout(timeout);
     const json = await response?.json().catch(() => ({}));
     setLoading(false);
     if (!response?.ok) {
@@ -44,7 +50,7 @@ function LoginForm() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-panel px-4">
-      <form action={login} className="w-full max-w-md rounded-2xl border border-line bg-white p-8 shadow-soft">
+      <form onSubmit={login} className="w-full max-w-md rounded-2xl border border-line bg-white p-8 shadow-soft">
         <h1 className="text-2xl font-semibold text-ink">Vendor Portal</h1>
         <p className="mt-2 text-sm text-slate-500">Sign in with the credentials provided by the platform admin.</p>
         {search.get("suspended") && <div className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">This vendor account is suspended or inactive.</div>}
