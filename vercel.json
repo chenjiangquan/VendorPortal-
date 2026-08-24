@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "app/api/auth/login/route.ts": {
+      "maxDuration": 15,
+      "regions": ["lhr1"]
+    }
+  }
+}
