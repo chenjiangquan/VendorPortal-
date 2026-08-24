@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   return (
@@ -24,14 +23,18 @@ function LoginForm() {
 
   async function login(formData: FormData) {
     setLoading(true);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email: String(formData.get("email")),
-      password: String(formData.get("password"))
-    });
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: String(formData.get("email")),
+        password: String(formData.get("password"))
+      })
+    }).catch(() => null);
+    const json = await response?.json().catch(() => ({}));
     setLoading(false);
-    if (error) {
-      toast.error(error.message);
+    if (!response?.ok) {
+      toast.error(json?.error ?? "Login failed. Please check your connection and try again.");
       return;
     }
     toast.success("Signed in.");
